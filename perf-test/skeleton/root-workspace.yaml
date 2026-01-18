@@ -1,0 +1,57 @@
+config:
+  portal: false
+rbac:
+  - role: readonlyrole
+    permissions:
+      - endpoint: "*"
+        negative: false
+        actions: "read"
+  - role: workspace-admin
+    permissions:
+      - endpoint: "*"
+        negative: false
+        actions: "create,update,read,delete"
+  - role: admin
+    permissions:
+      - endpoint: "*"
+        negative: false
+        actions: "create,update,read,delete"
+      - endpoint: "/rbac/*"
+        negative: true
+        actions: "create,update,read,delete"
+      - endpoint: "/rbac/*/*"
+        negative: true
+        actions: "create,update,read,delete"
+      - endpoint: "/rbac/*/*/*"
+        negative: true
+        actions: "create,update,read,delete"
+      - endpoint: "/rbac/*/*/*/*"
+        negative: true
+        actions: "create,update,read,delete"
+      - endpoint: "/rbac/*/*/*/*/*"
+        negative: true
+        actions: "create,update,read,delete"
+  - role: superadmin2
+    permissions:
+      - endpoint: "*"
+        negative: false
+        actions: "create,update,delete"
+      - endpoint: "/admins/*"
+        negative: true
+        actions: "create,update,read,delete"
+      - endpoint: "/admin/*/roles"
+        negative: true
+        actions: "create,update,read,delete"
+      - endpoint: "/rbac/*"
+        negative: true
+        actions: "create,update,read,delete"
+plugins:
+  - name: "file-log"
+    config:
+      path: /dev/stdout
+      reopen: false
+  - name: "correlation-id"
+    config:
+      header_name: Kong-Request-ID
+      generator: "uuid#counter"
+      echo_downstream: false

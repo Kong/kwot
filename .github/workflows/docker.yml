@@ -1,0 +1,74 @@
+name: Docker Build & Publish
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: docker.io
+  IMAGE_NAME: Kong/kwot
+
+jobs:
+  build-and-push:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract version
+        id: meta
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+          else
+            VERSION=latest
+          fi
+          VERSION=${VERSION#v}  # Remove 'v' prefix for Docker tag
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "image_tag=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ${{ steps.meta.outputs.image_tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          labels: |
+            org.opencontainers.image.title=kwot
+            org.opencontainers.image.description=Kong Onboarding Control Tool
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+
+      - name: Image Summary
+        run: |
+          echo "✓ Docker image published successfully!"
+          echo "📦 Image: ${{ steps.meta.outputs.image_tag }}"
+          echo ""
+          echo "🚀 Pull command:"
+          echo "   docker pull ${{ steps.meta.outputs.image_tag }}"
+          echo ""
+          echo "📖 Usage:"
+          echo "   docker run -e KONG_ADDR=http://kong:8001 -e AUTH_METHOD=RBAC -e ADMIN_TOKEN=token ${{ steps.meta.outputs.image_tag }} apply --dry-run"

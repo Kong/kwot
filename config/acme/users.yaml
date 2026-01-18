@@ -1,0 +1,23 @@
+---
+# ACME Workspace Users
+# Users assigned to roles defined in groups-and-roles.yaml
+
+- name: acme-admin
+  email: admin@acme.example.com
+  roles:
+    - admin
+
+- name: acme-readonly
+  email: readonly@acme.example.com
+  roles:
+    - readonlyrole
+
+- name: acme-superadmin
+  email: superadmin@acme.example.com
+  roles:
+    - superadmin2
+
+- name: acme-tenant-release
+  email: tenant-release@acme.example.com
+  roles:
+    - tenant-release-role

@@ -1,0 +1,65 @@
+---
+role_info:
+  wk_admin: &wk_admin admin
+  readonly_role: &readonly_role readonlyrole
+  tenant_release_role: &tenant_release_role tenant-release-role
+  superadmin2: &superadmin2 superadmin2
+
+config:
+  # ACME Workspace Groups
+  - group_name: acme-admin-group
+    group_comment: ACME workspace admin group
+    roles:
+      - workspace: acme
+        role: *wk_admin
+
+  - group_name: acme-readonly-group
+    group_comment: ACME workspace read-only group
+    roles:
+      - workspace: acme
+        role: *readonly_role
+
+  - group_name: acme-superadmin-group
+    group_comment: ACME workspace super admin group
+    roles:
+      - workspace: acme
+        role: *superadmin2
+
+  - group_name: acme-tenant-release-group
+    group_comment: ACME workspace tenant release group
+    roles:
+      - workspace: acme
+        role: *tenant_release_role
+
+  # Demo1 Workspace Groups
+  - group_name: demo1-readonly-group
+    group_comment: Demo1 readonly group
+    roles:
+      - workspace: demo1
+        role: *readonly_role
+
+  - group_name: demo1-admin-group
+    group_comment: Demo1 admin group
+    roles:
+      - workspace: demo1
+        role: *wk_admin
+
+  # Demo2 Workspace Groups
+  - group_name: demo2-readonly-group
+    group_comment: Demo2 readonly group
+    roles:
+      - workspace: demo2
+        role: *readonly_role
+
+  - group_name: demo2-admin-group
+    group_comment: Demo2 admin group
+    roles:
+      - workspace: demo2
+        role: *wk_admin
+
+  # Demo3 Workspace Groups
+  - group_name: demo3-admin-group
+    group_comment: Demo3 admin group
+    roles:
+      - workspace: demo3
+        role: *wk_admin

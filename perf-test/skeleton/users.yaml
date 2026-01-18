@@ -1,0 +1,17 @@
+---
+- name: readonly-user
+  email: readonly-user@example.com
+  roles:
+    - readonlyrole
+- name: admin-user
+  email: admin-user@example.com
+  roles:
+    - admin
+- name: tenant-user
+  email: tenant-user@example.com
+  roles:
+    - Tenant-User
+- name: tenant-release-user
+  email: tenant-release-user@example.com
+  roles:
+    - Tenant-Release-User

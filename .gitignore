@@ -1,0 +1,49 @@
+# kwot - Kong Workspace Onboarding Tool
+# Git ignore patterns for Go project
+
+# === IDE and Editor Files ===
+.DS_Store
+.env
+.vscode/launch.json
+.idea/
+*.swp
+*.swo
+*~
+
+# === Build Artifacts ===
+bin/
+/bin/kwot
+*.o
+*.a
+*.so
+*.dll
+*.dylib
+dist/
+
+# === Go Build Cache ===
+.cache/
+.build-cache/
+
+# === Test and Coverage Files ===
+*.out
+coverage.html
+coverage.xml
+*.cover
+.test-results/
+.integration-tests/
+
+# === Generated Files ===
+/config-perf-test/
+/perf-test/test-results/
+perf_test_output.log
+*.log
+
+# === Dependencies ===
+vendor/
+go.sum.bak
+
+# === Release Artifacts ===
+kwot-*
+*.tar.gz
+*.zip
+*.sha256

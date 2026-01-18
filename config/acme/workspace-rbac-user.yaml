@@ -1,0 +1,4 @@
+---
+- name: acme-rbac
+  roles:
+  - tenant-release-role

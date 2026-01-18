@@ -1,0 +1,31 @@
+permissions:
+  - endpoint: "*"
+    negative: false
+    actions: "read"
+  - endpoint: "/applications/*/application_instances"
+    negative: false
+    actions: "create,update,read,delete"
+  - endpoint: "/applications/*/application_instances/*"
+    negative: false
+    actions: "create,update,read,delete"
+  - endpoint: "/developers"
+    negative: false
+    actions: "update,read"
+  - endpoint: "/developers/*"
+    negative: false
+    actions: "update,read"
+  - endpoint: "/files"
+    negative: true
+    actions: "read"
+  - endpoint: "/files/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/portal"
+    negative: true
+    actions: "read"
+  - endpoint: "/consumers/*/consumer_groups"
+    negative: false
+    actions: "create,update,read,delete"
+  - endpoint: "/consumers/*/consumer_groups/*"
+    negative: false
+    actions: "create,update,read,delete"

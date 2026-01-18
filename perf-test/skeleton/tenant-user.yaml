@@ -1,0 +1,424 @@
+permissions:
+  - endpoint: "/"
+    negative: true
+    actions: "read"
+  - endpoint: "/kong"
+    negative: true
+    actions: "read"
+  - endpoint: "/acls"
+    negative: true
+    actions: "read"
+  - endpoint: "/acls/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/acls/*/consumer"
+    negative: true
+    actions: "read"
+  - endpoint: "/admins"
+    negative: true
+    actions: "read"
+  - endpoint: "/admins/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/admins/*/roles"
+    negative: false
+    actions: "read"
+  - endpoint: "/admins/*/workspaces"
+    negative: false
+    actions: "read"
+  - endpoint: "/admins/password_resets"
+    negative: true
+    actions: "read"
+  - endpoint: "/admins/register"
+    negative: true
+    actions: "read"
+  - endpoint: "/applications"
+    negative: true
+    actions: "read"
+  - endpoint: "/applications/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/applications/*/application_instances"
+    negative: true
+    actions: "read"
+  - endpoint: "/applications/*/application_instances/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/applications/*/credentials/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/applications/*/credentials/*/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/audit/objects"
+    negative: true
+    actions: "read"
+  - endpoint: "/audit/requests"
+    negative: true
+    actions: "read"
+  - endpoint: "/basic-auths/"
+    negative: true
+    actions: "read"
+  - endpoint: "/basic-auths/*/consumer"
+    negative: true
+    actions: "read"
+  - endpoint: "/ca_certificates"
+    negative: true
+    actions: "read"
+  - endpoint: "/ca_certificates/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/cache"
+    negative: true
+    actions: "read"
+  - endpoint: "/cache/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/certificates/"
+    negative: true
+    actions: "read"
+  - endpoint: "/certificates/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/consumers/"
+    negative: true
+    actions: "read"
+  - endpoint: "/consumers/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/consumers/*/acls"
+    negative: true
+    actions: "read"
+  - endpoint: "/consumers/*/acls/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/consumers/*/basic-auth"
+    negative: true
+    actions: "read"
+  - endpoint: "/consumers/*/basic-auth/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/consumers/*/hmac-auth"
+    negative: true
+    actions: "read"
+  - endpoint: "/consumers/*/hmac-auth/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/consumers/*/jwt"
+    negative: true
+    actions: "read"
+  - endpoint: "/consumers/*/jwt/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/consumers/*/key-auth"
+    negative: true
+    actions: "read"
+  - endpoint: "/consumers/*/key-auth/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/consumers/*/plugins"
+    negative: true
+    actions: "read"
+  - endpoint: "/consumers/*/plugins/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/developers"
+    negative: true
+    actions: "read"
+  - endpoint: "/developers/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/developers/*/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/developers/*/applications"
+    negative: true
+    actions: "read"
+  - endpoint: "/developers/*/applications/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/developers/*/applications/*/application_instances"
+    negative: true
+    actions: "read"
+  - endpoint: "/developers/*/applications/*/application_instances/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/developers/*/applications/*/credentials/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/developers/*/applications/*/credentials/*/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/developers/invite"
+    negative: true
+    actions: "read"
+  - endpoint: "/developers/roles"
+    negative: true
+    actions: "read"
+  - endpoint: "/developers/roles/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/files"
+    negative: true
+    actions: "read"
+  - endpoint: "/files/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/groups"
+    negative: false
+    actions: "read"
+  - endpoint: "/groups/*/roles"
+    negative: false
+    actions: "read"
+  - endpoint: "/groups/*"
+    negative: false
+    actions: "read"
+  - endpoint: "/hmac-auths/"
+    negative: true
+    actions: "read"
+  - endpoint: "/hmac-auths/*/consumer"
+    negative: true
+    actions: "read"
+  - endpoint: "/jwts/"
+    negative: true
+    actions: "read"
+  - endpoint: "/jwts/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/key-auths/"
+    negative: true
+    actions: "read"
+  - endpoint: "/key-auths/*/consumer"
+    negative: true
+    actions: "read"
+  - endpoint: "/mtls-auths"
+    negative: true
+    actions: "read"
+  - endpoint: "/oauth2/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/oauth2_tokens/"
+    negative: true
+    actions: "read"
+  - endpoint: "/oauth2_tokens/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/oauth2/"
+    negative: true
+    actions: "read"
+  - endpoint: "/plugins"
+    negative: false
+    actions: "read"
+  - endpoint: "/plugins/*"
+    negative: false
+    actions: "read"
+  - endpoint: "/plugins/enabled"
+    negative: false
+    actions: "read"
+  - endpoint: "/rbac/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/rbac/*/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/rbac/*/*/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/rbac/*/*/*/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/rbac/*/*/*/*/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/rbac/roles"
+    negative: true
+    actions: "read"
+  - endpoint: "/rbac/roles/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/rbac/roles/*/endpoints"
+    negative: true
+    actions: "read"
+  - endpoint: "/rbac/roles/*/endpoints/*/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/rbac/roles/*/endpoints/permissions"
+    negative: true
+    actions: "read"
+  - endpoint: "/rbac/roles/*/entities"
+    negative: true
+    actions: "read"
+  - endpoint: "/rbac/roles/*/entities/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/rbac/roles/*/entities/permissions"
+    negative: true
+    actions: "read"
+  - endpoint: "/rbac/roles/*/permissions"
+    negative: true
+    actions: "read"
+  - endpoint: "/rbac/users/"
+    negative: true
+    actions: "read"
+  - endpoint: "/rbac/users/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/rbac/users/*/permissions"
+    negative: true
+    actions: "read"
+  - endpoint: "/rbac/users/*/roles"
+    negative: true
+    actions: "read"
+  - endpoint: "/routes"
+    negative: false
+    actions: "read"
+  - endpoint: "/routes/*"
+    negative: false
+    actions: "read"
+  - endpoint: "/routes/*/plugins"
+    negative: false
+    actions: "read"
+  - endpoint: "/routes/*/plugins/*"
+    negative: false
+    actions: "read"
+  - endpoint: "/routes/*/service"
+    negative: false
+    actions: "read"
+  - endpoint: "/schemas/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/schemas/*/validate"
+    negative: true
+    actions: "read"
+  - endpoint: "/schemas/plugins/*"
+    negative: false
+    actions: "read"
+  - endpoint: "/schemas/upstreams/validate"
+    negative: false
+    actions: "read"
+  - endpoint: "/services"
+    negative: false
+    actions: "read"
+  - endpoint: "/services/*"
+    negative: false
+    actions: "read"
+  - endpoint: "/services/*/application_instances"
+    negative: false
+    actions: "read"
+  - endpoint: "/services/*/application_instances/*"
+    negative: false
+    actions: "read"
+  - endpoint: "/services/*/applications"
+    negative: false
+    actions: "read"
+  - endpoint: "/services/*/document_objects"
+    negative: false
+    actions: "read"
+  - endpoint: "/services/*/plugins"
+    negative: false
+    actions: "read"
+  - endpoint: "/services/*/plugins/*"
+    negative: false
+    actions: "read"
+  - endpoint: "/services/*/routes"
+    negative: false
+    actions: "read"
+  - endpoint: "/services/*/routes/*"
+    negative: false
+    actions: "read"
+  - endpoint: "/snis/"
+    negative: true
+    actions: "read"
+  - endpoint: "/snis/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/status"
+    negative: false
+    actions: "read"
+  - endpoint: "/upstreams/"
+    negative: false
+    actions: "read"
+  - endpoint: "/upstreams/*"
+    negative: false
+    actions: "read"
+  - endpoint: "/upstreams/*/health/"
+    negative: false
+    actions: "read"
+  - endpoint: "/upstreams/*/targets/"
+    negative: false
+    actions: "read"
+  - endpoint: "/upstreams/*/targets/*"
+    negative: false
+    actions: "read"
+  - endpoint: "/upstreams/*/targets/*/healthy"
+    negative: false
+    actions: "read"
+  - endpoint: "/upstreams/*/targets/*/unhealthy"
+    negative: false
+    actions: "read"
+  - endpoint: "/upstreams/*/targets/all"
+    negative: false
+    actions: "read"
+  - endpoint: "/vitals/"
+    negative: true
+    actions: "read"
+  - endpoint: "/vitals/cluster"
+    negative: true
+    actions: "read"
+  - endpoint: "/vitals/cluster/status_codes"
+    negative: true
+    actions: "read"
+  - endpoint: "/vitals/consumers/*/cluster"
+    negative: true
+    actions: "read"
+  - endpoint: "/vitals/nodes/"
+    negative: true
+    actions: "read"
+  - endpoint: "/vitals/nodes/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/vitals/status_code_classes"
+    negative: true
+    actions: "read"
+  - endpoint: "/vitals/status_codes/by_consumer"
+    negative: true
+    actions: "read"
+  - endpoint: "/vitals/status_codes/by_consumer_and_route"
+    negative: true
+    actions: "read"
+  - endpoint: "/vitals/status_codes/by_route"
+    negative: true
+    actions: "read"
+  - endpoint: "/vitals/status_codes/by_service"
+    negative: true
+    actions: "read"
+  - endpoint: "/workspaces/"
+    negative: true
+    actions: "read"
+  - endpoint: "/workspaces/*"
+    negative: false
+    actions: "read"
+  - endpoint: "/workspaces/*/entities"
+    negative: false
+    actions: "read"
+  - endpoint: "/workspaces/*/entities/*"
+    negative: false
+    actions: "read"
+  - endpoint: "/workspaces/*/meta"
+    negative: false
+    actions: "read"
+  - endpoint: "/document_objects"
+    negative: true
+    actions: "read"
+  - endpoint: "/consumer_groups/"
+    negative: true
+    actions: "read"
+  - endpoint: "/consumer_groups/*"
+    negative: true
+    actions: "read"
+  - endpoint: "/consumer_groups/*/consumers"
+    negative: true
+    actions: "read"
+  - endpoint: "/consumer_groups/*/consumers/*"
+    negative: true
+    actions: "read"
