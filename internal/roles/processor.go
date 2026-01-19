@@ -195,8 +195,8 @@ func (p *Processor) ApplyRoles(workspaceName string, rbac []models.RoleDetail, i
 					if err := p.addPermission(workspaceName, roleDetail.Role, perm); err != nil {
 						logger.Errorf("Failed to add permission to role %s: %v", roleDetail.Role, err)
 					} else if !p.dryRun {
-						logger.Debugf("Permission added for role %s in workspace %s",
-							roleDetail.Role, workspaceName)
+						logger.Debugf("Permission {\"endpoint\":\"%s\",\"negative\":%v,\"actions\":\"%s\"} added for role %s in workspace %s",
+							perm.Endpoint, perm.Negative, perm.Actions, roleDetail.Role, workspaceName)
 					}
 				}(permission)
 			}
@@ -303,7 +303,8 @@ func (p *Processor) createRole(workspaceName string, roleDetail models.RoleDetai
 // addPermission adds a permission to a role
 func (p *Processor) addPermission(workspaceName, roleName string, permission models.Permission) error {
 	if p.dryRun {
-		logger.Infof("[DRY-RUN] Would add permission %v to role '%s'", permission, roleName)
+		logger.Infof("[DRY-RUN] Would add permission {\"endpoint\":\"%s\",\"negative\":%v,\"actions\":\"%s\"} to role '%s'",
+			permission.Endpoint, permission.Negative, permission.Actions, roleName)
 		return nil
 	}
 
