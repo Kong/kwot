@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Kong/kwot/internal/config"
 	"github.com/Kong/kwot/internal/kong"
@@ -345,7 +346,40 @@ func (p *Processor) createWorkspaceWithExistenceCheck(name string, wsConfig *mod
 	}
 
 	// Workspace was successfully created
+	// Verify workspace is available before proceeding (with configurable retries)
+	maxAttempts := 5
+	if envAttempts := os.Getenv("WORKSPACE_AVAILABILITY_ATTEMPTS"); envAttempts != "" {
+		if attempts, err := strconv.Atoi(envAttempts); err == nil && attempts > 0 {
+			maxAttempts = attempts
+		}
+	}
+
+	if err := p.waitForWorkspaceAvailable(name, maxAttempts); err != nil {
+		return false, err
+	}
+
 	return false, nil
+}
+
+// waitForWorkspaceAvailable waits for a workspace to become available with configurable retry attempts
+func (p *Processor) waitForWorkspaceAvailable(name string, maxAttempts int) error {
+	path := fmt.Sprintf("/workspaces/%s", name)
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		var result map[string]interface{}
+		if err := p.client.GetJSON(path, nil, &result); err == nil {
+			logger.Debugf("Workspace %s is available (attempt %d/%d)", name, attempt, maxAttempts)
+			return nil // Workspace is available
+		}
+
+		if attempt < maxAttempts {
+			// Exponential backoff: 50ms, 100ms, 150ms, 200ms, 250ms
+			backoffMs := time.Duration(attempt*50) * time.Millisecond
+			time.Sleep(backoffMs)
+		}
+	}
+
+	return fmt.Errorf("workspace %s was created but is not available after %d attempts", name, maxAttempts)
 }
 
 // applyWorkspaceRBACUsers applies workspace-scoped RBAC users
