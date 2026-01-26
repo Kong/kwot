@@ -212,7 +212,10 @@ func (c *Client) doRequest(method, path string, body interface{}, queryParams ur
 	}
 
 	// Set headers
-	req.Header.Set("Content-Type", "application/json")
+	// Only set Content-Type if there's a body
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	for key, value := range c.AuthHeader {
 		req.Header.Set(key, value)
 	}

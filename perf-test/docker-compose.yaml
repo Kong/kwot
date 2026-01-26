@@ -19,8 +19,9 @@ x-kong-db-config: &kong-db-config
 # Common config values
 x-kong-common-config: &kong-common-config
   KONG_VITALS: "on"
-  KONG_LOG_LEVEL: "notice"
+  KONG_LOG_LEVEL: "debug"
   KONG_PLUGINS: "bundled"
+  KONG_AUDIT_LOG: "on"
 
 # Common configuration for Kong containers
 x-kong-container-common: &kong-container-common
