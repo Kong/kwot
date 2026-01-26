@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.1] - 2026-01-26
+
+### Fixed
+
+- Fixed Kong audit_log errors on GET/DELETE requests by only setting `Content-Type: application/json` header when request body is present
+
+
 ## [1.0.0] - 2026-01-06
 
 Initial stable release of kwot - Kong Onboarding Control Tool.
