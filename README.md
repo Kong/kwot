@@ -71,6 +71,21 @@ When deleting workspaces, kwot automatically cleans up all workspace-scoped chil
 
 Manually onboarding teams? Configurations drifting between environments? `kwot` turns that into config files and one command.
 
+## Configuration
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `KONG_ADDR` | `http://localhost:8001` | Kong Admin API address |
+| `AUTH_METHOD` | `RBAC` | Authentication method (RBAC or PASSWORD) |
+| `ADMIN_TOKEN` | - | Admin API token for RBAC authentication |
+| `CONFIG_DIR` | `./config/` | Directory containing configuration files |
+| `MAX_CONCURRENT_WORKSPACES` | `5` | Number of workspaces to process in parallel |
+| `MAX_RETRY_ATTEMPTS` | `5` | Retry attempts for resource availability checks during creation |
+
+**About `MAX_RETRY_ATTEMPTS`:** Handles Kong Enterprise replication lag where API calls return success (201) but resources aren't immediately available for dependent operations. Uses exponential backoff (50ms, 100ms, 150ms, 200ms, 250ms) to verify workspace, role, and RBAC user creation before proceeding with dependent operations.
+
 ## Table of Contents
 
 1. [Installation](#installation)

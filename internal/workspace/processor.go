@@ -347,13 +347,7 @@ func (p *Processor) createWorkspaceWithExistenceCheck(name string, wsConfig *mod
 
 	// Workspace was successfully created
 	// Verify workspace is available before proceeding (with configurable retries)
-	maxAttempts := 5
-	if envAttempts := os.Getenv("WORKSPACE_AVAILABILITY_ATTEMPTS"); envAttempts != "" {
-		if attempts, err := strconv.Atoi(envAttempts); err == nil && attempts > 0 {
-			maxAttempts = attempts
-		}
-	}
-
+	maxAttempts := getMaxRetryAttempts()
 	if err := p.waitForWorkspaceAvailable(name, maxAttempts); err != nil {
 		return false, err
 	}
@@ -380,6 +374,59 @@ func (p *Processor) waitForWorkspaceAvailable(name string, maxAttempts int) erro
 	}
 
 	return fmt.Errorf("workspace %s was created but is not available after %d attempts", name, maxAttempts)
+}
+
+// getMaxRetryAttempts retrieves the maximum retry attempts from environment variable or returns default (5)
+func getMaxRetryAttempts() int {
+	maxAttempts := 5
+	if envAttempts := os.Getenv("MAX_RETRY_ATTEMPTS"); envAttempts != "" {
+		if attempts, err := strconv.Atoi(envAttempts); err == nil && attempts > 0 {
+			maxAttempts = attempts
+		}
+	}
+	return maxAttempts
+}
+
+// waitForRoleAvailable waits for a role to become available with configurable retry attempts
+func (p *Processor) waitForRoleAvailable(workspaceName, roleName string, maxAttempts int) error {
+	path := fmt.Sprintf("/workspaces/%s/rbac/roles/%s", workspaceName, roleName)
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		var result map[string]interface{}
+		if err := p.client.GetJSON(path, nil, &result); err == nil {
+			logger.Debugf("Role %s is available (attempt %d/%d)", roleName, attempt, maxAttempts)
+			return nil // Role is available
+		}
+
+		if attempt < maxAttempts {
+			// Exponential backoff: 50ms, 100ms, 150ms, 200ms, 250ms
+			backoffMs := time.Duration(attempt*50) * time.Millisecond
+			time.Sleep(backoffMs)
+		}
+	}
+
+	return fmt.Errorf("role %s was created but is not available after %d attempts", roleName, maxAttempts)
+}
+
+// waitForRBACUserAvailable waits for an RBAC user to become available with configurable retry attempts
+func (p *Processor) waitForRBACUserAvailable(workspaceName, userName string, maxAttempts int) error {
+	path := fmt.Sprintf("/%s/rbac/users/%s", workspaceName, userName)
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		var result map[string]interface{}
+		if err := p.client.GetJSON(path, nil, &result); err == nil {
+			logger.Debugf("RBAC user %s is available (attempt %d/%d)", userName, attempt, maxAttempts)
+			return nil // RBAC user is available
+		}
+
+		if attempt < maxAttempts {
+			// Exponential backoff: 50ms, 100ms, 150ms, 200ms, 250ms
+			backoffMs := time.Duration(attempt*50) * time.Millisecond
+			time.Sleep(backoffMs)
+		}
+	}
+
+	return fmt.Errorf("RBAC user %s was created but is not available after %d attempts", userName, maxAttempts)
 }
 
 // applyWorkspaceRBACUsers applies workspace-scoped RBAC users
@@ -526,6 +573,13 @@ func (p *Processor) createOrUpdateRBACUser(workspaceName string, user models.RBA
 	}
 
 	logger.Infof("RBAC user '%s' created in workspace '%s'", user.Name, workspaceName)
+
+	// Verify RBAC user is available before assigning roles (with configurable retries)
+	maxAttempts := getMaxRetryAttempts()
+	if err := p.waitForRBACUserAvailable(workspaceName, user.Name, maxAttempts); err != nil {
+		return err
+	}
+
 	return nil
 }
 
