@@ -80,6 +80,11 @@ func LoadConfig(configFile string) error {
 		MaxRetryAttempts:        getEnvInt("MAX_RETRY_ATTEMPTS", 5),
 	}
 
+	// Ensure MaxRetryAttempts is positive; fall back to default if misconfigured
+	if cfg.MaxRetryAttempts <= 0 {
+		cfg.MaxRetryAttempts = 5
+	}
+
 	// Validate required fields
 	if cfg.AuthMethod == "" {
 		return fmt.Errorf("ERROR: AUTH_METHOD not set\nMust be one of: RBAC or PASSWORD\nExample: export AUTH_METHOD=RBAC\nThen set corresponding credentials:\n  - For RBAC: export ADMIN_TOKEN=<token>\n  - For PASSWORD: export ADMIN_USER=<user> BASE64_UID_PWD=<base64_credentials>")
