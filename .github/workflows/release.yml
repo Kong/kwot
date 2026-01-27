@@ -224,6 +224,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Download artifacts
         uses: actions/download-artifact@v4
@@ -248,26 +250,29 @@ jobs:
           # Ensure full history + tags
           git fetch --tags --force
 
-          # Find previous tag (excluding current tag if workflow runs on tag)
-          PREV_TAG=$(git tag -l 'v*' --sort=v:refname | grep -v "^${VERSION}$" | tail -n1)
+          # Find previous semantic version tag (exclude current tag)
+          PREV_TAG=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' \
+            --sort=v:refname | grep -v "^${VERSION}$" | tail -n1)
 
           echo "Current version: $VERSION_NO_V"
           echo "Previous tag: ${PREV_TAG:-<none>}"
 
-          # Collect commit messages
+          # Collect commit messages with short hashes (exclude merge commits)
           if [ -z "$PREV_TAG" ]; then
-            git log --no-merges --pretty=format:"%s" > /tmp/commits_raw.txt
+            git log --no-merges --pretty=format:"%h|%s" > /tmp/commits_raw.txt
           else
-            git log "$PREV_TAG"..HEAD --no-merges --pretty=format:"%s" > /tmp/commits_raw.txt
+            git log "$PREV_TAG"..HEAD --no-merges --pretty=format:"%h|%s" > /tmp/commits_raw.txt
           fi
 
-          # Group commits by type
-          FEATURES=$(grep -Ei '^feat(\(.+\))?: ' /tmp/commits_raw.txt || true)
-          FIXES=$(grep -Ei '^fix(\(.+\))?: ' /tmp/commits_raw.txt || true)
-          CHORES=$(grep -Ei '^(chore|ci|docs|refactor|test)(\(.+\))?: ' /tmp/commits_raw.txt || true)
+          # Group commits by conventional commit type
+          FEATURES=$(grep -Ei '^[a-f0-9]+\|feat(\(.+\))?: ' /tmp/commits_raw.txt || true)
+          FIXES=$(grep -Ei '^[a-f0-9]+\|fix(\(.+\))?: ' /tmp/commits_raw.txt || true)
+          CHORES=$(grep -Ei '^[a-f0-9]+\|(chore|ci|docs|refactor|test)(\(.+\))?: ' /tmp/commits_raw.txt || true)
+          OTHER=$(grep -Ev '^[a-f0-9]+\|(feat|fix|chore|ci|docs|refactor|test)(\(.+\))?: ' /tmp/commits_raw.txt || true)
 
-          # Everything else
-          OTHER=$(grep -Ev '^(feat|fix|chore|ci|docs|refactor|test)(\(.+\))?: ' /tmp/commits_raw.txt || true)
+          format_commits() {
+            sed -E 's/^([a-f0-9]+)\|(.*)/- [`\1`](https:\/\/github.com\/${{ github.repository }}\/commit\/\1) - \2/'
+          }
 
           # Build release notes
           {
@@ -276,25 +281,25 @@ jobs:
 
             if [ -n "$FEATURES" ]; then
               echo "### ✨ Features"
-              echo "$FEATURES" | sed 's/^/- /'
+              echo "$FEATURES" | format_commits
               echo ""
             fi
 
             if [ -n "$FIXES" ]; then
               echo "### 🐛 Bug Fixes"
-              echo "$FIXES" | sed 's/^/- /'
+              echo "$FIXES" | format_commits
               echo ""
             fi
 
             if [ -n "$CHORES" ]; then
               echo "### 🧹 Chores & Maintenance"
-              echo "$CHORES" | sed 's/^/- /'
+              echo "$CHORES" | format_commits
               echo ""
             fi
 
             if [ -n "$OTHER" ]; then
               echo "### 📝 Other Changes"
-              echo "$OTHER" | sed 's/^/- /'
+              echo "$OTHER" | format_commits
               echo ""
             fi
 
