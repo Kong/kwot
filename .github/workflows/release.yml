@@ -205,14 +205,15 @@ jobs:
 
       - name: Generate SBOM
         run: |
-          syft github.com/Kong/kwot@${{ needs.validate.outputs.version }} -o spdx-json > kwot-${{ needs.validate.outputs.version }}-sbom.spdx.json
-          syft github.com/Kong/kwot@${{ needs.validate.outputs.version }} -o cyclonedx-json > kwot-${{ needs.validate.outputs.version }}-sbom.cyclonedx.json
+          # Generate SBOM from source code directory
+          syft dir:. -o spdx-json > kwot-${{ needs.validate.outputs.version }}-sbom.spdx.json
+          syft dir:. -o cyclonedx-json > kwot-${{ needs.validate.outputs.version }}-sbom.cyclonedx.json
 
       - name: Upload SBOM artifacts
         uses: actions/upload-artifact@v4
         with:
           name: release-artifacts-sbom
-          path: kwot-*.spdx.json
+          path: kwot-*-sbom.*
           retention-days: 5
 
   # Create GitHub release with all artifacts
