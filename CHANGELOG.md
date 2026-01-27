@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.2] - 2026-01-27
+
+### Added
+
+- Added availability checks for role, workspace, and RBAC user creation to handle Kong Enterprise replication lag
+- New `MAX_RETRY_ATTEMPTS` environment variable to configure retry attempts for resource availability checks (default: 5)
+- Exponential backoff strategy (50ms, 100ms, 150ms, 200ms, 250ms) for availability verification
+
+### Fixed
+
+- Fixed race condition where plugins fail to create immediately after workspace creation with "Workspace not found" error
+- Fixed potential race condition where permissions fail to apply immediately after role creation
+- Fixed potential race condition where role assignments fail immediately after RBAC user creation
+
 ## [1.0.1] - 2026-01-26
 
 ### Fixed

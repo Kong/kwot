@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Kong/kwot/internal/config"
 	"github.com/Kong/kwot/internal/kong"
@@ -297,7 +298,46 @@ func (p *Processor) createRole(workspaceName string, roleDetail models.RoleDetai
 	}
 
 	logger.Infof("Role %s created in workspace %s", roleDetail.Role, workspaceName)
+
+	// Verify role is available before applying permissions (with configurable retries)
+	maxAttempts := getMaxRetryAttemptsFromEnv()
+	if err := p.waitForRoleAvailable(workspaceName, roleDetail.Role, maxAttempts); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+// waitForRoleAvailable waits for a role to become available with configurable retry attempts
+func (p *Processor) waitForRoleAvailable(workspaceName, roleName string, maxAttempts int) error {
+	path := fmt.Sprintf("/%s/rbac/roles/%s", workspaceName, roleName)
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		var result map[string]interface{}
+		if err := p.client.GetJSON(path, nil, &result); err == nil {
+			logger.Debugf("Role %s is available (attempt %d/%d)", roleName, attempt, maxAttempts)
+			return nil // Role is available
+		}
+
+		if attempt < maxAttempts {
+			// Exponential backoff: 50ms, 100ms, 150ms, 200ms, 250ms
+			backoff := time.Duration(attempt*50) * time.Millisecond
+			time.Sleep(backoff)
+		}
+	}
+
+	return fmt.Errorf("role %s was created but is not available after %d attempts", roleName, maxAttempts)
+}
+
+// getMaxRetryAttemptsFromEnv retrieves the maximum retry attempts from environment variable or returns default (5)
+func getMaxRetryAttemptsFromEnv() int {
+	maxAttempts := 5
+	if envAttempts := os.Getenv("MAX_RETRY_ATTEMPTS"); envAttempts != "" {
+		if attempts, err := strconv.Atoi(envAttempts); err == nil && attempts > 0 {
+			maxAttempts = attempts
+		}
+	}
+	return maxAttempts
 }
 
 // addPermission adds a permission to a role
