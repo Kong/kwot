@@ -271,9 +271,11 @@ jobs:
           OTHER=$(grep -Ev '^[a-f0-9]+\|(feat|fix|chore|ci|docs|refactor|test)(\(.+\))?: ' /tmp/commits_raw.txt || true)
 
           format_commits() {
-            sed -E \
-              -e 's/`/\\`/g' \
-              -e "s|^([a-f0-9]+)\|(.*)|- [\`\1\`](https://github.com/${{ github.repository }}/commit/\1) - \2|"
+            while IFS='|' read -r hash message; do
+              # Replace backticks with single quotes to avoid sed escaping issues
+              message="${message//\`/\'}"
+              echo "- [\`$hash\`](https://github.com/${{ github.repository }}/commit/$hash) - $message"
+            done
           }
 
           # Build release notes
