@@ -241,9 +241,12 @@ jobs:
         id: release_notes
         run: |
           VERSION="${{ needs.validate.outputs.version }}"
+          # Remove 'v' prefix for changelog lookup
+          VERSION_NO_V=${VERSION#v}
           
           # Extract changelog for this version
-          CHANGELOG_SECTION=$(awk "/^## \[${VERSION#v}\]/,/^## \[/" CHANGELOG.md | head -n -1 | tail -n +2)
+          # Match pattern: ## [X.Y.Z] - DATE
+          CHANGELOG_SECTION=$(awk "/^## \[${VERSION_NO_V}\]/,/^## \[/" CHANGELOG.md | head -n -1 | tail -n +2)
           
           cat > /tmp/release_notes.md << EOF
           $CHANGELOG_SECTION
