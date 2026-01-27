@@ -5,8 +5,8 @@ role_info:
 
 rbac:
   - role: *readonly_role
-    permissions: ../tenant-user.yaml
+    permissions: ./config/tenant-user.yaml
   - role: *tenant_release_role
-    permissions: ../tenant-release-user.yaml
+    permissions: ./config/tenant-release-user.yaml
   - role: *tenant_devportal_approver_role
-    permissions: ../tenant-devportal-approver.yaml
+    permissions: ./config/tenant-devportal-approver.yaml
