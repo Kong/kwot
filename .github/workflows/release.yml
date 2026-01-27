@@ -245,52 +245,17 @@ jobs:
           # Extract changelog for this version
           CHANGELOG_SECTION=$(awk "/^## \[${VERSION#v}\]/,/^## \[/" CHANGELOG.md | head -n -1 | tail -n +2)
           
-          cat > /tmp/release_notes.md << 'EOF'
-          # kwot ${{ needs.validate.outputs.version }}
-          
-          Kong configuration management CLI - Infrastructure as Code for Kong Enterprise
-          
-          ## Installation
-          
-          ### Linux & macOS
-          ```bash
-          wget https://github.com/${{ github.repository }}/releases/download/${{ needs.validate.outputs.version }}/kwot-${{ needs.validate.outputs.version }}-linux-amd64.tar.gz
-          tar xzf kwot-${{ needs.validate.outputs.version }}-linux-amd64.tar.gz
-          sudo mv kwot-${{ needs.validate.outputs.version }}/linux-amd64/kwot /usr/local/bin/
-          kwot --version
-          ```
-          
-          ### Verify Checksum
-          ```bash
-          sha256sum -c kwot-${{ needs.validate.outputs.version }}-linux-amd64.tar.gz.sha256
-          ```
-          
-          ### Windows
-          Download the ZIP file and extract to a location in your PATH.
-          
-          ## Changelog
-          
+          cat > /tmp/release_notes.md << EOF
           $CHANGELOG_SECTION
           
-          ## Artifacts
+          ## Downloads
           
-          - **Linux**: amd64, arm64, 386 architectures
-          - **macOS**: amd64 (Intel), arm64 (Apple Silicon)  
+          Binaries available for:
+          - **Linux**: amd64, arm64, 386
+          - **macOS**: amd64, arm64
           - **Windows**: amd64
-          - **SBOM**: CycloneDX and SPDX formats for supply chain security
           
-          ## Verification
-          
-          All artifacts include SHA256 checksums. Verify integrity:
-          ```bash
-          sha256sum -c kwot-*.sha256
-          ```
-          
-          ## Documentation
-          
-          - [README](https://github.com/${{ github.repository }}/blob/main/README.md)
-          - [Changelog](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md)
-          - [Migration Guide](https://github.com/${{ github.repository }}/blob/main/MIGRATION_FROM_NODEJS.md)
+          See [Installation Guide](https://github.com/${{ github.repository }}/blob/main/README.md#installation) for setup instructions.
           EOF
 
           echo "release_notes<<EOF" >> $GITHUB_OUTPUT
