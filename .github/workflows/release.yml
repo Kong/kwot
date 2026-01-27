@@ -271,7 +271,7 @@ jobs:
           OTHER=$(grep -Ev '^[a-f0-9]+\|(feat|fix|chore|ci|docs|refactor|test)(\(.+\))?: ' /tmp/commits_raw.txt || true)
 
           format_commits() {
-            sed -E 's/^([a-f0-9]+)\|(.*)/- [`\1`](https:\/\/github.com\/${{ github.repository }}\/commit\/\1) - \2/'
+            sed -E 's|^([a-f0-9]+)\|(.*)|- [\`\1\`](https://github.com/${{ github.repository }}/commit/\1) - \2|'
           }
 
           # Build release notes
