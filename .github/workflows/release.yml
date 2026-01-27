@@ -237,40 +237,47 @@ jobs:
           find ./dist -type f -exec mv {} ./artifacts/ \;
           ls -la ./artifacts/
 
-      - name: Generate release notes from CHANGELOG
+      - name: Generate release notes from commits
         id: release_notes
         run: |
           VERSION="${{ needs.validate.outputs.version }}"
           VERSION_NO_V=${VERSION#v}
+          PREV_TAG=$(git tag -l 'v*' | sort -V | tail -n2 | head -n1)
           
-          # Extract changelog section more reliably
-          # Look for ## [X.Y.Z] and grab until the next ## or end of file
-          sed -n "/^## \[${VERSION_NO_V}\]/,/^## \[/p" CHANGELOG.md | head -n -1 > /tmp/changelog_section.txt
+          echo "Current version: $VERSION_NO_V"
+          echo "Previous tag: $PREV_TAG"
           
-          # Check if we got content
-          if [ ! -s /tmp/changelog_section.txt ] || grep -q "^##" /tmp/changelog_section.txt; then
-            # If extraction failed, use full changelog
-            cat CHANGELOG.md > /tmp/release_notes.md
+          # Generate list of commits
+          if [ -z "$PREV_TAG" ]; then
+            git log --pretty=format:"- %s" > /tmp/commits.txt
           else
-            # Use extracted section
-            cat /tmp/changelog_section.txt > /tmp/release_notes.md
+            git log $PREV_TAG..HEAD --pretty=format:"- %s" > /tmp/commits.txt
           fi
           
-          cat >> /tmp/release_notes.md << 'EOF'
-
-## Downloads
-
-Binaries available for:
-- **Linux**: amd64, arm64, 386
-- **macOS**: amd64, arm64
-- **Windows**: amd64
-
-See [Installation Guide](https://github.com/${{ github.repository }}/blob/main/README.md#installation) for setup instructions.
-EOF
-
-          echo "release_notes<<EOF" >> $GITHUB_OUTPUT
-          cat /tmp/release_notes.md >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          # Build release notes
+          {
+            echo "## Release $VERSION_NO_V"
+            echo ""
+            echo "### Changes"
+            echo ""
+            cat /tmp/commits.txt
+            echo ""
+            echo "### Downloads"
+            echo ""
+            echo "Binaries available for:"
+            echo "- **Linux**: amd64, arm64, 386"
+            echo "- **macOS**: amd64, arm64"
+            echo "- **Windows**: amd64"
+            echo ""
+            echo "See [Installation Guide](https://github.com/${{ github.repository }}/blob/main/README.md#installation) for setup instructions."
+          } > /tmp/release_notes.md
+          
+          # Store multiline output properly
+          {
+            echo "release_notes<<RELEASE_NOTES_EOF"
+            cat /tmp/release_notes.md
+            echo "RELEASE_NOTES_EOF"
+          } >> $GITHUB_OUTPUT
 
       - name: Create Release
         uses: softprops/action-gh-release@v1

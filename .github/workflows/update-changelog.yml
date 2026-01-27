@@ -1,0 +1,116 @@
+name: Update Changelog
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-changelog:
+    name: Update CHANGELOG.md
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          VERSION_NO_V=${VERSION#v}
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "version_no_v=${VERSION_NO_V}" >> $GITHUB_OUTPUT
+
+      - name: Get previous tag
+        id: prev_tag
+        run: |
+          PREV_TAG=$(git tag -l 'v*' | sort -V | tail -n2 | head -n1)
+          echo "prev_tag=${PREV_TAG}" >> $GITHUB_OUTPUT
+          if [ -z "$PREV_TAG" ]; then
+            echo "First release detected"
+          else
+            echo "Previous tag: $PREV_TAG"
+          fi
+
+      - name: Generate changelog section
+        id: changelog
+        run: |
+          VERSION_NO_V=${{ steps.version.outputs.version_no_v }}
+          PREV_TAG=${{ steps.prev_tag.outputs.prev_tag }}
+          TODAY=$(date +%Y-%m-%d)
+          
+          # Start building the changelog section
+          {
+            echo "## [$VERSION_NO_V] - $TODAY"
+            echo ""
+            
+            # Get range of commits
+            if [ -z "$PREV_TAG" ]; then
+              RANGE="HEAD"
+            else
+              RANGE="$PREV_TAG..HEAD"
+            fi
+            
+            # Extract Added commits (feat:)
+            ADDED=$(git log $RANGE --grep="^feat" --pretty=format:"%s" | sed 's/^feat[^:]*: //' | sed 's/^/- /')
+            if [ ! -z "$ADDED" ]; then
+              echo "### Added"
+              echo ""
+              echo "$ADDED"
+              echo ""
+            fi
+            
+            # Extract Fixed commits (fix:)
+            FIXED=$(git log $RANGE --grep="^fix" --pretty=format:"%s" | sed 's/^fix[^:]*: //' | sed 's/^/- /')
+            if [ ! -z "$FIXED" ]; then
+              echo "### Fixed"
+              echo ""
+              echo "$FIXED"
+              echo ""
+            fi
+            
+            # Extract Performance commits (perf:)
+            PERF=$(git log $RANGE --grep="^perf" --pretty=format:"%s" | sed 's/^perf[^:]*: //' | sed 's/^/- /')
+            if [ ! -z "$PERF" ]; then
+              echo "### Performance"
+              echo ""
+              echo "$PERF"
+              echo ""
+            fi
+          } > /tmp/new_changelog_section.txt
+          
+          cat /tmp/new_changelog_section.txt
+
+      - name: Update CHANGELOG.md
+        run: |
+          VERSION_NO_V=${{ steps.version.outputs.version_no_v }}
+          
+          # Check if version already exists in changelog
+          if grep -q "^## \[$VERSION_NO_V\]" CHANGELOG.md; then
+            echo "Version $VERSION_NO_V already in CHANGELOG.md"
+          else
+            # Insert new changelog section after the header comment block (first 6 lines)
+            head -n 6 CHANGELOG.md > /tmp/changelog_temp.txt
+            cat /tmp/new_changelog_section.txt >> /tmp/changelog_temp.txt
+            tail -n +7 CHANGELOG.md >> /tmp/changelog_temp.txt
+            mv /tmp/changelog_temp.txt CHANGELOG.md
+            echo "Updated CHANGELOG.md with version $VERSION_NO_V"
+          fi
+
+      - name: Commit and push updated CHANGELOG
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          if [ -n "$(git status -s)" ]; then
+            git add CHANGELOG.md
+            git commit -m "docs: update changelog for ${{ steps.version.outputs.version }}"
+            git push origin main
+          else
+            echo "No changes to commit"
+          fi

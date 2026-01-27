@@ -1,0 +1,54 @@
+name: Validate Commits
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  validate-commits:
+    name: Validate Conventional Commits
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install commitlint
+        run: |
+          npm install --save-dev @commitlint/config-conventional @commitlint/cli
+
+      - name: Validate PR commits
+        if: github.event_name == 'pull_request'
+        run: |
+          npx commitlint --from ${{ github.event.pull_request.base.sha }} --to HEAD
+
+      - name: Validate push commits
+        if: github.event_name == 'push'
+        run: |
+          # Get last 5 commits or all if less than 5
+          COMMIT_COUNT=$(git rev-list --count HEAD)
+          if [ $COMMIT_COUNT -gt 5 ]; then
+            # Validate last 5 commits
+            npx commitlint --from HEAD~5 --to HEAD
+          else
+            # Validate all commits
+            npx commitlint --from $(git rev-list --max-parents=0 HEAD) --to HEAD
+          fi
+
+      - name: Comment on PR if validation fails
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '❌ **Commit message validation failed**\n\nPlease ensure your commits follow the Conventional Commits format:\n\n```\n<type>(<scope>): <subject>\n\n<body>\n\n<footer>\n```\n\n**Valid types:** feat, fix, docs, style, refactor, perf, test, chore, ci\n\n**Example:**\n```\nfeat(workspace): add availability check with exponential backoff\n\nAdd GET endpoint verification to handle Kong replication lag when\nplugins fail immediately after workspace creation.\n\nFixes #42\n```\n\nSee CONVENTIONAL_COMMITS.md for details.'
+            })
