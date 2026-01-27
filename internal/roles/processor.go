@@ -300,7 +300,7 @@ func (p *Processor) createRole(workspaceName string, roleDetail models.RoleDetai
 	logger.Infof("Role %s created in workspace %s", roleDetail.Role, workspaceName)
 
 	// Verify role is available before applying permissions (with configurable retries)
-	maxAttempts := getMaxRetryAttemptsFromEnv()
+	maxAttempts := p.cfg.MaxRetryAttempts
 	if err := p.waitForRoleAvailable(workspaceName, roleDetail.Role, maxAttempts); err != nil {
 		return err
 	}
@@ -312,32 +312,24 @@ func (p *Processor) createRole(workspaceName string, roleDetail models.RoleDetai
 func (p *Processor) waitForRoleAvailable(workspaceName, roleName string, maxAttempts int) error {
 	path := fmt.Sprintf("/%s/rbac/roles/%s", workspaceName, roleName)
 
+	var lastErr error
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		var result map[string]interface{}
 		if err := p.client.GetJSON(path, nil, &result); err == nil {
 			logger.Debugf("Role %s is available (attempt %d/%d)", roleName, attempt, maxAttempts)
 			return nil // Role is available
+		} else {
+			lastErr = err
 		}
 
 		if attempt < maxAttempts {
-			// Exponential backoff: 50ms, 100ms, 150ms, 200ms, 250ms
+			// Linear backoff: 50ms, 100ms, 150ms, 200ms, 250ms
 			backoff := time.Duration(attempt*50) * time.Millisecond
 			time.Sleep(backoff)
 		}
 	}
 
-	return fmt.Errorf("role %s was created but is not available after %d attempts", roleName, maxAttempts)
-}
-
-// getMaxRetryAttemptsFromEnv retrieves the maximum retry attempts from environment variable or returns default (5)
-func getMaxRetryAttemptsFromEnv() int {
-	maxAttempts := 5
-	if envAttempts := os.Getenv("MAX_RETRY_ATTEMPTS"); envAttempts != "" {
-		if attempts, err := strconv.Atoi(envAttempts); err == nil && attempts > 0 {
-			maxAttempts = attempts
-		}
-	}
-	return maxAttempts
+	return fmt.Errorf("role %s was created but is not available after %d attempts: %w", roleName, maxAttempts, lastErr)
 }
 
 // addPermission adds a permission to a role

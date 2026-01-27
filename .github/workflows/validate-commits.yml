@@ -50,5 +50,5 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: '❌ **Commit message validation failed**\n\nPlease ensure your commits follow the Conventional Commits format:\n\n```\n<type>(<scope>): <subject>\n\n<body>\n\n<footer>\n```\n\n**Valid types:** feat, fix, docs, style, refactor, perf, test, chore, ci\n\n**Example:**\n```\nfeat(workspace): add availability check with exponential backoff\n\nAdd GET endpoint verification to handle Kong replication lag when\nplugins fail immediately after workspace creation.\n\nFixes #42\n```\n\nSee CONVENTIONAL_COMMITS.md for details.'
+              body: '❌ **Commit message validation failed**\n\nPlease ensure your commits follow the Conventional Commits format:\n\n```\n<type>(<scope>): <subject>\n\n<body>\n\n<footer>\n```\n\n**Valid types:** feat, fix, docs, style, refactor, perf, test, chore, ci\n\n**Example:**\n```\nfeat(workspace): add availability check with linear backoff\n\nAdd GET endpoint verification to handle Kong replication lag when\nplugins fail immediately after workspace creation.\n\nFixes #42\n```\n\nSee CONVENTIONAL_COMMITS.md for details.'
             })

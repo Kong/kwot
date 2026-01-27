@@ -84,7 +84,7 @@ Manually onboarding teams? Configurations drifting between environments? `kwot` 
 | `MAX_CONCURRENT_WORKSPACES` | `5` | Number of workspaces to process in parallel |
 | `MAX_RETRY_ATTEMPTS` | `5` | Retry attempts for resource availability checks during creation |
 
-**About `MAX_RETRY_ATTEMPTS`:** Handles Kong Enterprise replication lag where API calls return success (201) but resources aren't immediately available for dependent operations. Uses exponential backoff (50ms, 100ms, 150ms, 200ms, 250ms) to verify workspace, role, and RBAC user creation before proceeding with dependent operations.
+**About `MAX_RETRY_ATTEMPTS`:** Handles Kong Enterprise replication lag where API calls return success (201) but resources aren't immediately available for dependent operations. Uses linear backoff (50ms, 100ms, 150ms, 200ms, 250ms) to verify workspace, role, and RBAC user creation before proceeding with dependent operations.
 
 ## Table of Contents
 

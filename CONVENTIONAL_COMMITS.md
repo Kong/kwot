@@ -54,14 +54,14 @@ Specify what part of the codebase is affected:
 
 ### Simple fix
 ```
-fix: handle workspace creation race condition with exponential backoff
+fix: handle workspace creation race condition with linear backoff
 ```
 
 ### Feature with scope
 ```
 feat(workspace): add availability check after creation
 
-Add GET endpoint verification with exponential backoff (50-250ms)
+Add GET endpoint verification with linear backoff (50-250ms)
 to handle Kong Enterprise replication lag when plugins fail
 immediately after workspace creation.
 
