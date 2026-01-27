@@ -241,25 +241,32 @@ jobs:
         id: release_notes
         run: |
           VERSION="${{ needs.validate.outputs.version }}"
-          # Remove 'v' prefix for changelog lookup
           VERSION_NO_V=${VERSION#v}
           
-          # Extract changelog for this version
-          # Match pattern: ## [X.Y.Z] - DATE
-          CHANGELOG_SECTION=$(awk "/^## \[${VERSION_NO_V}\]/,/^## \[/" CHANGELOG.md | head -n -1 | tail -n +2)
+          # Extract changelog section more reliably
+          # Look for ## [X.Y.Z] and grab until the next ## or end of file
+          sed -n "/^## \[${VERSION_NO_V}\]/,/^## \[/p" CHANGELOG.md | head -n -1 > /tmp/changelog_section.txt
           
-          cat > /tmp/release_notes.md << EOF
-          $CHANGELOG_SECTION
+          # Check if we got content
+          if [ ! -s /tmp/changelog_section.txt ] || grep -q "^##" /tmp/changelog_section.txt; then
+            # If extraction failed, use full changelog
+            cat CHANGELOG.md > /tmp/release_notes.md
+          else
+            # Use extracted section
+            cat /tmp/changelog_section.txt > /tmp/release_notes.md
+          fi
           
-          ## Downloads
-          
-          Binaries available for:
-          - **Linux**: amd64, arm64, 386
-          - **macOS**: amd64, arm64
-          - **Windows**: amd64
-          
-          See [Installation Guide](https://github.com/${{ github.repository }}/blob/main/README.md#installation) for setup instructions.
-          EOF
+          cat >> /tmp/release_notes.md << 'EOF'
+
+## Downloads
+
+Binaries available for:
+- **Linux**: amd64, arm64, 386
+- **macOS**: amd64, arm64
+- **Windows**: amd64
+
+See [Installation Guide](https://github.com/${{ github.repository }}/blob/main/README.md#installation) for setup instructions.
+EOF
 
           echo "release_notes<<EOF" >> $GITHUB_OUTPUT
           cat /tmp/release_notes.md >> $GITHUB_OUTPUT
