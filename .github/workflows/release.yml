@@ -240,28 +240,70 @@ jobs:
       - name: Generate release notes from commits
         id: release_notes
         run: |
+          set -e
+
           VERSION="${{ needs.validate.outputs.version }}"
-          VERSION_NO_V=${VERSION#v}
-          PREV_TAG=$(git tag -l 'v*' | sort -V | tail -n2 | head -n1)
-          
+          VERSION_NO_V="${VERSION#v}"
+
+          # Ensure full history + tags
+          git fetch --tags --force
+
+          # Find previous tag (excluding current tag if workflow runs on tag)
+          PREV_TAG=$(git tag -l 'v*' --sort=v:refname | grep -v "^${VERSION}$" | tail -n1)
+
           echo "Current version: $VERSION_NO_V"
-          echo "Previous tag: $PREV_TAG"
-          
-          # Generate list of commits
+          echo "Previous tag: ${PREV_TAG:-<none>}"
+
+          # Collect commit messages
           if [ -z "$PREV_TAG" ]; then
-            git log --pretty=format:"- %s" > /tmp/commits.txt
+            git log --no-merges --pretty=format:"%s" > /tmp/commits_raw.txt
           else
-            git log $PREV_TAG..HEAD --pretty=format:"- %s" > /tmp/commits.txt
+            git log "$PREV_TAG"..HEAD --no-merges --pretty=format:"%s" > /tmp/commits_raw.txt
           fi
-          
+
+          # Group commits by type
+          FEATURES=$(grep -Ei '^feat(\(.+\))?: ' /tmp/commits_raw.txt || true)
+          FIXES=$(grep -Ei '^fix(\(.+\))?: ' /tmp/commits_raw.txt || true)
+          CHORES=$(grep -Ei '^(chore|ci|docs|refactor|test)(\(.+\))?: ' /tmp/commits_raw.txt || true)
+
+          # Everything else
+          OTHER=$(grep -Ev '^(feat|fix|chore|ci|docs|refactor|test)(\(.+\))?: ' /tmp/commits_raw.txt || true)
+
           # Build release notes
           {
             echo "## Release $VERSION_NO_V"
             echo ""
-            echo "### Changes"
-            echo ""
-            cat /tmp/commits.txt
-            echo ""
+
+            if [ -n "$FEATURES" ]; then
+              echo "### ✨ Features"
+              echo "$FEATURES" | sed 's/^/- /'
+              echo ""
+            fi
+
+            if [ -n "$FIXES" ]; then
+              echo "### 🐛 Bug Fixes"
+              echo "$FIXES" | sed 's/^/- /'
+              echo ""
+            fi
+
+            if [ -n "$CHORES" ]; then
+              echo "### 🧹 Chores & Maintenance"
+              echo "$CHORES" | sed 's/^/- /'
+              echo ""
+            fi
+
+            if [ -n "$OTHER" ]; then
+              echo "### 📝 Other Changes"
+              echo "$OTHER" | sed 's/^/- /'
+              echo ""
+            fi
+
+            if [ ! -s /tmp/commits_raw.txt ]; then
+              echo "### Changes"
+              echo "- No code changes since last release"
+              echo ""
+            fi
+
             echo "### Downloads"
             echo ""
             echo "Binaries available for:"
@@ -271,13 +313,13 @@ jobs:
             echo ""
             echo "See [Installation Guide](https://github.com/${{ github.repository }}/blob/main/README.md#installation) for setup instructions."
           } > /tmp/release_notes.md
-          
-          # Store multiline output properly
+
+          # Export multiline output
           {
             echo "release_notes<<RELEASE_NOTES_EOF"
             cat /tmp/release_notes.md
             echo "RELEASE_NOTES_EOF"
-          } >> $GITHUB_OUTPUT
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
