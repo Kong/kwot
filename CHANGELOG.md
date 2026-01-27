@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - Added availability checks for role, workspace, and RBAC user creation to handle Kong Enterprise replication lag
 - New `MAX_RETRY_ATTEMPTS` environment variable to configure retry attempts for resource availability checks (default: 5)
-- Exponential backoff strategy (50ms, 100ms, 150ms, 200ms, 250ms) for availability verification
+- Linear backoff strategy (50ms, 100ms, 150ms, 200ms, 250ms) for availability verification
 
 ### Fixed
 

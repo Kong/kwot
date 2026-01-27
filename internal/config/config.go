@@ -36,6 +36,9 @@ type Config struct {
 
 	// Concurrency settings
 	MaxConcurrentWorkspaces int
+
+	// Retry settings
+	MaxRetryAttempts int
 }
 
 var globalConfig *Config
@@ -74,6 +77,7 @@ func LoadConfig(configFile string) error {
 		FeatureDeleteAllEnabled:   getEnvBool("FEATURE_DELETE_ALL_ENABLED", false),
 
 		MaxConcurrentWorkspaces: getEnvInt("MAX_CONCURRENT_WORKSPACES", 5),
+		MaxRetryAttempts:        getEnvInt("MAX_RETRY_ATTEMPTS", 5),
 	}
 
 	// Validate required fields
