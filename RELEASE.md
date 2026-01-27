@@ -4,17 +4,25 @@ Complete guide for releasing new versions of kwot with all best practices and au
 
 ## Release Process Overview
 
-Our release process is fully automated via GitHub Actions but requires manual steps to initiate. All validation, testing, and building happens automatically.
+Our release process is **fully automated via GitHub Actions**:
+
+1. **Version Bump** → Update `VERSION` in `Makefile`
+2. **PR Merge** → Merge to main branch
+3. **Auto-Detection** → Workflow detects version change
+4. **Signed Tag** → Automatically creates GPG-signed tag
+5. **Release Build** → Builds binaries for all platforms
+6. **Release Creation** → Creates GitHub release with artifacts
+
+**No manual tag creation needed!** The workflow handles everything.
 
 ## Pre-Release Checklist (Manual)
 
-Before triggering a release, ensure:
+Before submitting PR, ensure:
 
 ### 1. Code Quality
 - [ ] All tests pass: `make test`
 - [ ] Linting passes: `make lint`
 - [ ] Code is formatted: `make fmt`
-- [ ] No security vulnerabilities: `go list -json -m all | go run golang.org/x/vuln/cmd/govulncheck@latest ./...`
 
 ```bash
 # Run all checks at once
@@ -22,49 +30,108 @@ make all
 ```
 
 ### 2. Version & Documentation Updates
-- [ ] Update version in [CHANGELOG.md](CHANGELOG.md)
+- [ ] **Update version in Makefile** (Required!)
+  ```bash
+  # Edit Makefile: VERSION=X.Y.Z
+  # Semantic versioning: MAJOR.MINOR.PATCH
+  ```
+
+- [ ] Update [CHANGELOG.md](CHANGELOG.md)
   - Add release date (today's date)
   - List new features, fixes, and breaking changes
   - Keep changelog minimal and focused
 
-- [ ] Update [BOM.md](BOM.md)
-  - Run security audit: `make test`
-  - Update security audit date to today
-  - Verify dependency versions are current: `go list -u -m all`
-  - Update binary size if changed: `ls -lh bin/kwot`
-
-- [ ] Update version in [README.md](README.md) if applicable
-  - Installation instructions
-  - Feature mentions if new major features added
-
-- [ ] Verify all documentation is accurate and up-to-date
-  - Check all links are valid
-  - Ensure examples still work
+- [ ] Verify all documentation is accurate
+  - README.md
+  - Examples in config files
+  - BOM.md if dependencies changed
 
 ### 3. Build Verification
-- [ ] Test build for current platform: `make build`
-- [ ] Verify binary works: `./bin/kwot --version`
+- [ ] Test build: `make build`
+- [ ] Verify binary: `./bin/kwot --version`
 - [ ] Test key features with sample configs
 
-### 4. Commit Changes
-After all checks pass:
-
+### 4. Create PR and Merge
 ```bash
-# Stage documentation updates
-git add CHANGELOG.md BOM.md README.md
+# Push feature branch
+git push origin feature-branch
 
-# Commit with semantic message
-git commit -m "docs: prepare release v2.0.0"
-
-# Push to main/master
-git push origin main
+# Create PR on GitHub
+# Wait for CI to pass
+# Merge PR to main
 ```
 
-## Triggering a Release
+**After PR merges to main:**
+- ✅ Auto-release workflow detects version change
+- ✅ Creates GPG-signed git tag automatically
+- ✅ Triggers release build workflow
+- ✅ Builds and publishes release
 
-### Option 1: Push a Git Tag (Automatic)
+## Automatic Release Flow
 
-The easiest and most reliable method:
+### What Happens When You Merge
+
+1. **Version Detection**
+   - Workflow compares `Makefile` VERSION with previous commit
+   - Detects if version was bumped
+
+2. **Tag Creation**
+   - Creates annotated git tag automatically
+   - Tag includes CHANGELOG entry in message
+   - (Optionally signed with GPG if secrets are configured)
+
+3. **Release Build**
+   - Validates version format
+   - Runs all tests and linting
+   - Builds binaries for all platforms:
+     - Linux (amd64, arm64, 386)
+     - macOS (amd64, arm64)
+     - Windows (amd64)
+   - Creates checksums
+   - Creates GitHub Release with artifacts
+
+4. **Verification**
+   - All artifacts downloadable from GitHub Releases
+   - Version propagates to package managers
+   - (Optional: Tag shows "Verified" badge if GPG-signed)
+
+## Setting Up GPG Signing (Optional)
+
+GPG signing of tags adds an extra verification layer showing a "Verified" badge on GitHub. **This is optional but recommended for security.**
+
+### To Enable GPG Signing
+
+If you want signed releases, run the setup script:
+
+```bash
+bash scripts/setup-gpg-signing.sh
+```
+
+This will:
+1. Generate a GPG key pair
+2. Guide you through exporting the private key
+3. Show you where to add GitHub secrets
+
+### What It Does
+
+- ✅ Tags are GPG-signed when created
+- ✅ Releases show "Verified" badge on GitHub
+- ✅ Provides cryptographic proof of who created the release
+
+### If You Skip GPG Signing
+
+- ✅ Releases still work normally
+- ✅ Artifacts are still built and published
+- ✅ No "Verified" badge, but still safe (artifacts from GitHub's infrastructure)
+- ✅ You can add GPG signing anytime later
+
+**Recommendation:** For Kong organization releases, GPG signing is best practice. For testing, you can skip it initially.
+
+## Manual Release Process (Legacy)
+
+If auto-release workflow fails, you can manually create a release:
+
+### Option 1: Push a Git Tag
 
 ```bash
 # Create and push version tag
@@ -72,22 +139,14 @@ git tag -a v2.0.0 -m "Release kwot v2.0.0"
 git push origin v2.0.0
 ```
 
-The GitHub Actions workflow will automatically:
-1. Validate the version format
-2. Run full test suite
-3. Build binaries for all platforms
-4. Create checksums
-5. Generate GitHub release with artifacts
-
 ### Option 2: Manual Workflow Dispatch
 
 Via GitHub web UI:
 1. Go to Actions → Release workflow
 2. Click "Run workflow"
 3. Enter version (e.g., `v2.0.0`)
-4. Workflow runs same steps as tag-based release
 
-## Release Workflow (Automated)
+## Release Workflow Details
 
 The `.github/workflows/release.yml` handles:
 
