@@ -321,8 +321,8 @@ func (p *Processor) waitForRoleAvailable(workspaceName, roleName string, maxAtte
 
 		if attempt < maxAttempts {
 			// Exponential backoff: 50ms, 100ms, 150ms, 200ms, 250ms
-			backoffMs := time.Duration(attempt*50) * time.Millisecond
-			time.Sleep(backoffMs)
+			backoff := time.Duration(attempt*50) * time.Millisecond
+			time.Sleep(backoff)
 		}
 	}
 
