@@ -1,7 +1,6 @@
 # kwot — Kong Workspace Onboarding Tool
 
 [![Build Status](https://github.com/Kong/kwot/actions/workflows/ci.yml/badge.svg)](https://github.com/Kong/kwot/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/github/tag/Kong/kwot?label=latest%20version)](https://github.com/Kong/kwot/tags)
 
 A powerful, single-binary CLI for automating Kong Gateway workspace, group, role, and RBAC configuration management. Written in Go with zero runtime dependencies.
 
