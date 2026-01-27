@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.3] - 2026-01-27
+
+### Fixed
+
+- Improved error handling in availability checks to capture and return actual Kong API errors instead of generic timeout messages
+- Corrected retry backoff terminology from "exponential" to "linear" throughout documentation and code comments
+- Eliminated code duplication by centralizing `MaxRetryAttempts` configuration in `config.Config` instead of duplicating env parsing in processors
+- Enhanced error diagnostics by wrapping GetJSON errors in returned error messages (using `%w` format specifier)
+
 ## [1.0.2] - 2026-01-27
 
 ### Added
