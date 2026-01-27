@@ -108,10 +108,15 @@ kwot/
 
 This project uses **Conventional Commits** for automated changelog generation. See [CONVENTIONAL_COMMITS.md](./CONVENTIONAL_COMMITS.md) for complete guidelines.
 
-**Setup validation (one time):**
+**Setup validation (automatic on npm install):**
 ```bash
-npm install
-npx husky install
+# Clone and setup (this automatically installs commit hooks)
+git clone https://github.com/Kong/kwot.git
+cd kwot
+npm install  # ← Automatically installs husky commit message hooks
+
+# Verify hooks are installed
+ls -la .husky/
 ```
 
 **Commit format:**
@@ -125,9 +130,14 @@ npx husky install
 
 **Valid types:** `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`
 
-Validation happens automatically:
-- **Local:** Git hook rejects invalid messages before commit
-- **CI:** GitHub Actions validates all PR commits with feedback
+Validation happens automatically at two levels:
+- **Local:** Git hook rejects invalid messages before commit (runs instantly)
+- **CI:** GitHub Actions validates all PR commits with detailed feedback
+
+If a commit message is rejected:
+- Review the error message shown by the hook
+- Fix your commit message format
+- Try committing again
 
 ### Making Changes
 

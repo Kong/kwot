@@ -1,4 +1,22 @@
-#!/bin/sh
-. "$(dirname "$0")/_/husky.sh"
-
-npx commitlint --edit "$1"
+npx commitlint --edit "$1" || {
+  echo ""
+  echo "❌ Commit message validation failed!"
+  echo ""
+  echo "Your message:"
+  echo "$(cat "$1")"
+  echo ""
+  echo "📝 Conventional Commits Format Required:"
+  echo "   <type>(<scope>): <subject>"
+  echo ""
+  echo "Valid types: feat, fix, docs, style, refactor, perf, test, chore, ci, revert"
+  echo ""
+  echo "✅ Examples:"
+  echo "   feat: add new authentication module"
+  echo "   fix(api): resolve race condition in workspace creation"
+  echo "   docs: update README with installation steps"
+  echo "   chore: update dependencies"
+  echo ""
+  echo "📖 Learn more: https://www.conventionalcommits.org/"
+  echo ""
+  exit 1
+}
