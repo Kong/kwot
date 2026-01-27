@@ -47,3 +47,4 @@ kwot-*
 *.tar.gz
 *.zip
 *.sha256
+node_modules/

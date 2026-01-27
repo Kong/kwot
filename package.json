@@ -1,0 +1,15 @@
+{
+  "name": "kwot",
+  "version": "1.0.2",
+  "description": "Kong Onboarding Control Tool - Infrastructure as Code for Kong",
+  "private": true,
+  "scripts": {
+    "prepare": "husky install",
+    "validate-commits": "commitlint --from HEAD~5 --to HEAD"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.3.0",
+    "@commitlint/config-conventional": "^19.3.0",
+    "husky": "^9.0.0"
+  }
+}

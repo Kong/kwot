@@ -1,0 +1,82 @@
+# git-cliff configuration for automatic changelog generation
+# This enables convention-based changelog generation from git commits
+
+[changelog]
+# Changelog header
+header = """
+# Changelog - kwot
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+"""
+
+# Changelog body (template for all entries)
+body = """
+{% if version -%}
+## [{{ version }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else -%}
+## [Unreleased]
+{% endif -%}
+
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | striptags | title }}
+{% for commit in commits %}
+- {% if commit.breaking %}**BREAKING**: {% endif %}{{ commit.message | upper_first }} ([`{{ commit.id | truncate(length=7, end="") }}`](https://github.com/Kong/kwot/commit/{{ commit.id }}))
+{%- if commit.body %}
+  {{ commit.body | indent(prefix="  ") }}
+{%- endif %}
+{% endfor %}
+{% endfor %}
+
+"""
+
+# Changelog footer
+footer = ""
+
+# Commit parsers - map commit prefixes to changelog groups
+[[git]]
+conventional_commits = true
+filter_unconventional = false
+
+# Group commit types
+[[commit_parsers]]
+message = "^feat"
+group = "Added"
+
+[[commit_parsers]]
+message = "^fix"
+group = "Fixed"
+
+[[commit_parsers]]
+message = "^perf"
+group = "Performance"
+
+[[commit_parsers]]
+message = "^refactor"
+group = "Changed"
+
+[[commit_parsers]]
+message = "^doc"
+group = "Documentation"
+
+[[commit_parsers]]
+message = "^test"
+skip = true
+
+[[commit_parsers]]
+message = "^chore"
+skip = true
+
+[[commit_parsers]]
+message = "^style"
+skip = true
+
+[[commit_parsers]]
+message = "^ci"
+skip = true
+
+# Skip commits with these patterns
+skip_tags = "v0.1.0-lts"

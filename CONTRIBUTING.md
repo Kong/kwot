@@ -104,6 +104,69 @@ kwot/
 
 ## Development Workflow
 
+### Conventional Commits Required
+
+This project uses **Conventional Commits** for automated changelog generation and semantic versioning. All commits MUST follow this format:
+
+```
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+**Valid types:** `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`
+
+**Example:**
+```
+feat(workspace): add availability check with exponential backoff
+
+Add GET endpoint verification to handle Kong Enterprise replication lag
+when plugins fail immediately after workspace creation.
+
+Fixes #42
+```
+
+See [CONVENTIONAL_COMMITS.md](./CONVENTIONAL_COMMITS.md) for comprehensive guidelines.
+
+### Setup Commit Validation
+
+Validation happens automatically at two levels:
+
+**Local validation (before commit):**
+```bash
+# Install husky hooks (one time)
+npm install husky --save-dev
+npx husky install
+
+# Install commitlint (one time)
+npm install --save-dev @commitlint/config-conventional @commitlint/cli
+
+# Now your commits are validated automatically before they're created
+git commit -m "feat: add new feature"  # ✓ Accepted
+git commit -m "added new feature"      # ✗ Rejected - wrong format
+```
+
+**CI validation (on pull requests):**
+- GitHub Actions automatically validates all commits in PRs
+- PR will fail if commits don't follow conventional format
+- You'll get helpful feedback on what needs to be fixed
+
+### Amend Commit Messages
+
+If your commit was rejected:
+
+```bash
+# Fix the last commit message
+git commit --amend -m "feat(scope): corrected message"
+
+# Force push (only on your branch!)
+git push origin your-branch-name --force-with-lease
+```
+
+## Development Workflow
+
 ### 1. Make Changes
 
 ```bash
