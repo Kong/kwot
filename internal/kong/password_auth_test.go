@@ -31,13 +31,13 @@ func TestPasswordAuthRedirectHandling(t *testing.T) {
 		_, err := r.Cookie("session")
 		if err == http.ErrNoCookie {
 			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"message": "Unauthorized"}`))
+			_, _ = w.Write([]byte(`{"message": "Unauthorized"}`))
 			return
 		}
 
 		// If we have the cookie, respond with success
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"authenticated": true}`))
+		_, _ = w.Write([]byte(`{"authenticated": true}`))
 	}))
 	defer server.Close()
 
@@ -83,18 +83,18 @@ func TestRBACAuthTokenHeader(t *testing.T) {
 		token := r.Header.Get("Kong-Admin-Token")
 		if token == "" {
 			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"message": "Missing Kong-Admin-Token header"}`))
+			_, _ = w.Write([]byte(`{"message": "Missing Kong-Admin-Token header"}`))
 			return
 		}
 
 		if token != "test-token" {
 			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"message": "Invalid token"}`))
+			_, _ = w.Write([]byte(`{"message": "Invalid token"}`))
 			return
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"authenticated": true}`))
+		_, _ = w.Write([]byte(`{"authenticated": true}`))
 	}))
 	defer server.Close()
 
