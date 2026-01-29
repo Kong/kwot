@@ -1,0 +1,23 @@
+---
+# demo4 Workspace Users
+# Users assigned to roles defined in groups-and-roles.yaml
+
+- name: demo4-admin
+  email: admin@demo4.example.com
+  roles:
+    - admin
+
+- name: demo4-readonly
+  email: readonly@demo4.example.com
+  roles:
+    - readonlyrole
+
+- name: demo4-superadmin
+  email: superadmin@demo4.example.com
+  roles:
+    - superadmin2
+
+- name: demo4-tenant-release
+  email: tenant-release@demo4.example.com
+  roles:
+    - tenant-release-role

@@ -85,14 +85,14 @@ kwot/
 ├── config/                       # Example YAML configurations
 │   ├── root-workspace.yaml      # Root workspace config
 │   ├── groups-and-roles.yaml    # Groups & roles config
-│   └── acme/, demo1/, demo2/    # Example workspace configs
+│   └── demo4/, demo1/, demo2/    # Example workspace configs
 │
 ├── tests/                        # Integration/end-to-end tests
 │   ├── test.sh                  # Main test script
 │   ├── test_apply.sh            # Apply command tests
 │   ├── test_error_messages.sh   # Error message tests
 │   ├── test_safety_model.sh     # Safety feature tests
-│   └── test_acme_anchors.sh     # Complex scenario tests
+│   └── test_demo4_anchors.sh     # Complex scenario tests
 │
 ├── main.go                      # Entry point
 ├── go.mod                       # Dependencies
