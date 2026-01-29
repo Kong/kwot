@@ -64,11 +64,11 @@ Tests improved error messages:
 | Duplicate role | `Resource already exists: role 'admin' already exists in workspace` |
 | Invalid value | `Invalid value: name must be alphanumeric` |
 
-### test_acme_anchors.sh
-Tests ACME workspace-specific functionality.
+### test_demo4_anchors.sh
+Tests demo4 workspace-specific functionality.
 
 ```bash
-./tests/test_acme_anchors.sh
+./tests/test_demo4_anchors.sh
 ```
 
 ### test_apply.sh

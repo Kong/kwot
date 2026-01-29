@@ -6,29 +6,29 @@ role_info:
   superadmin2: &superadmin2 superadmin2
 
 config:
-  # ACME Workspace Groups
-  - group_name: acme-admin-group
-    group_comment: ACME workspace admin group
+  # demo4 Workspace Groups
+  - group_name: demo4-admin-group
+    group_comment: demo4 workspace admin group
     roles:
-      - workspace: acme
+      - workspace: demo4
         role: *wk_admin
 
-  - group_name: acme-readonly-group
-    group_comment: ACME workspace read-only group
+  - group_name: demo4-readonly-group
+    group_comment: demo4 workspace read-only group
     roles:
-      - workspace: acme
+      - workspace: demo4
         role: *readonly_role
 
-  - group_name: acme-superadmin-group
-    group_comment: ACME workspace super admin group
+  - group_name: demo4-superadmin-group
+    group_comment: demo4 workspace super admin group
     roles:
-      - workspace: acme
+      - workspace: demo4
         role: *superadmin2
 
-  - group_name: acme-tenant-release-group
-    group_comment: ACME workspace tenant release group
+  - group_name: demo4-tenant-release-group
+    group_comment: demo4 workspace tenant release group
     roles:
-      - workspace: acme
+      - workspace: demo4
         role: *tenant_release_role
 
   # Demo1 Workspace Groups

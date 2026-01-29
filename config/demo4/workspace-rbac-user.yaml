@@ -1,4 +1,4 @@
 ---
-- name: acme-rbac
+- name: demo4-rbac
   roles:
   - tenant-release-role
