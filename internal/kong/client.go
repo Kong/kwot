@@ -66,6 +66,10 @@ func NewClient(cfg *config.Config) (*Client, error) {
 	httpClient := &http.Client{
 		Transport: transport,
 		Timeout:   10 * time.Second,
+		// Don't automatically follow redirects, we'll handle them
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
 	}
 
 	client := &Client{
@@ -231,7 +235,7 @@ func (c *Client) doRequest(method, path string, body interface{}, queryParams ur
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
 
-	// Check for errors
+	// Check for errors (but allow 3xx redirects for /auth endpoint)
 	if resp.StatusCode >= 400 {
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
@@ -239,6 +243,7 @@ func (c *Client) doRequest(method, path string, body interface{}, queryParams ur
 		return nil, fmt.Errorf("%s", errorMessage)
 	}
 
+	// For /auth endpoint, 302 with Set-Cookie is expected (not an error)
 	return resp, nil
 }
 
