@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.4] - 2026-01-29
+
+### Security
+
+- Upgraded Go from 1.24.11 to 1.24.12 to patch critical TLS vulnerability GO-2026-4340 in crypto/tls package
+- Fixes potential incorrect encryption level processing in TLS handshake messages
+
 ## [1.0.3] - 2026-01-27
 
 ### Fixed
