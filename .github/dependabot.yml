@@ -10,8 +10,31 @@ updates:
     open-pull-requests-limit: 5
     labels: ["dependencies", "go"]
     commit-message:
-      prefix: "deps:"
+      prefix: "chore"
+      prefix-development: "chore"
       include: "scope"
+    groups:
+      go-dependencies:
+        patterns:
+          - "*"
     allow:
       - dependency-type: "direct"
       - dependency-type: "indirect"
+
+  # npm dependencies - weekly updates
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "npm"]
+    commit-message:
+      prefix: "chore"
+      prefix-development: "chore"
+      include: "scope"
+    groups:
+      npm-dependencies:
+        patterns:
+          - "*"
