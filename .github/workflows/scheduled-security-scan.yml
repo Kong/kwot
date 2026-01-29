@@ -1,0 +1,75 @@
+name: Scheduled Security Scan
+
+# Run daily at 2 AM UTC to catch vulnerabilities proactively
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  security-scan:
+    name: Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v4
+        with:
+          go-version: "1.24.12"
+          cache: true
+
+      - name: Run govulncheck
+        id: vulnscan
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          # Check exit code approach is more reliable than pattern matching
+          if ! govulncheck ./... > /tmp/vuln_output.txt 2>&1; then
+            echo "VULNERABILITIES_FOUND=true" >> $GITHUB_ENV
+            echo "VULN_OUTPUT<<EOF" >> $GITHUB_ENV
+            cat /tmp/vuln_output.txt >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+          fi
+
+      - name: Check for existing vulnerability issue
+        if: env.VULNERABILITIES_FOUND == 'true'
+        id: check_issue
+        uses: actions/github-script@v7.0.1
+        with:
+          script: |
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'security,vulnerability',
+              state: 'open'
+            });
+            core.setOutput('has_no_issue', issues.data.length === 0 ? 'true' : 'false');
+
+      - name: Create vulnerability issue
+        if: env.VULNERABILITIES_FOUND == 'true' && steps.check_issue.outputs.has_no_issue == 'true'
+        uses: actions/github-script@v7.0.1
+        with:
+          script: |
+            const workflowUrl = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}';
+            const vulnOutput = process.env.VULN_OUTPUT || 'See workflow run for details';
+            const body = `A scheduled security scan detected vulnerabilities in the Go dependencies.\n\n**Action Required:** Please review and address the vulnerabilities.\n\n- [View workflow run](${workflowUrl})\n- Run \`govulncheck ./...\` locally for details\n- Update dependencies or apply patches as needed\n\n<details>\n<summary>Vulnerability Details</summary>\n\n\`\`\`\n${vulnOutput}\n\`\`\`\n\n</details>\n\nThis issue will remain open until all vulnerabilities are resolved.`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚨 Security vulnerability detected in scheduled scan',
+              body: body,
+              labels: ['security', 'vulnerability']
+            });
+
+      - name: Report scan results
+        if: always()
+        run: |
+          if [ "${{ env.VULNERABILITIES_FOUND }}" == "true" ]; then
+            echo "⚠️  Vulnerabilities detected! A GitHub issue has been created."
+            exit 1
+          else
+            echo "✅ No vulnerabilities found in scheduled scan."
+          fi
