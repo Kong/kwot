@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.5] - 2026-01-29
+
+### Fixed
+
+- Fixed PASSWORD authentication to properly handle Kong's 302 redirect response from `/auth` endpoint
+- Session cookies are now correctly captured and used in subsequent authenticated requests
+- PASSWORD auth now works correctly with Kong SSO/Manager
+
+### Added
+
+- Added `.env.auth.password.example` configuration file documenting PASSWORD auth setup
+- Comprehensive unit tests for PASSWORD and RBAC authentication methods
+- Tests validate redirect handling, header setup, and cookie management
+
 ## [1.0.4] - 2026-01-29
 
 ### Security
