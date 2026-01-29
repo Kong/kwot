@@ -16,6 +16,7 @@ func TestPasswordAuthRedirectHandling(t *testing.T) {
 		// Verify correct headers are sent
 		if r.URL.Path == "/auth" {
 			// Kong's /auth endpoint returns 302 with session cookie
+			w.Header().Set("Location", "http://localhost:8002")
 			http.SetCookie(w, &http.Cookie{
 				Name:     "session",
 				Value:    "test-session-cookie-value",
@@ -23,7 +24,6 @@ func TestPasswordAuthRedirectHandling(t *testing.T) {
 				HttpOnly: true,
 			})
 			w.WriteHeader(http.StatusFound)
-			w.Header().Set("Location", "http://localhost:8002")
 			return
 		}
 
