@@ -14,7 +14,7 @@ permissions:
   packages: write
 
 env:
-  GO_VERSION: "1.24.11"
+  GO_VERSION: "1.24.12"
 
 jobs:
   # Detect version change from Makefile

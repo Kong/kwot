@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.4] - 2026-01-29
+
+### Security
+
+- Verified and recommend building with Go 1.24.12, which patches critical TLS vulnerability GO-2026-4340 in the crypto/tls package
+- Updated Dockerfile and CI/CD workflows to build with Go 1.24.12 for consistency
+
 ## [1.0.3] - 2026-01-27
 
 ### Fixed

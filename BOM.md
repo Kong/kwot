@@ -4,7 +4,7 @@ Last Updated: 2025-01-16
 
 ## Build
 
-- **Language:** Go 1.24.11
+- **Language:** Go 1.24.12
 - **Binary Size:** 8.0MB (with `-s -w` and `-trimpath` flags)
 - **CVEs:** 0 known vulnerabilities (verified via `govulncheck`)
 - **Platforms:** Linux (amd64, arm64, 386), macOS (amd64, arm64), Windows (amd64)
