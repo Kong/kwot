@@ -17,7 +17,7 @@ Thank you for your interest in contributing to kwot! This guide will help you ge
 
 ### Prerequisites
 
-- **Go 1.24.11+** - Download from [golang.org](https://golang.org/dl/)
+- **Go 1.24.12+** - Download from [golang.org](https://golang.org/dl/)
 - **Git** - For version control
 - **Make** - For running build tasks
 - **A Kong instance** - For integration testing (optional for unit tests)
