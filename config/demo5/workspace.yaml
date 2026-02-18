@@ -1,0 +1,12 @@
+role_info:
+  readonly_role: &readonly_role Tenant-User
+  tenant_release_role: &tenant_release_role Tenant-Release-User
+  tenant_devportal_approver_role: &tenant_devportal_approver_role Tenant-Devportal-Approver
+
+rbac:
+  - role: *readonly_role
+    permissions: ./config/tenant-user.yaml
+  - role: *tenant_release_role
+    permissions: ./config/tenant-release-user.yaml
+  - role: *tenant_devportal_approver_role
+    permissions: ./config/tenant-devportal-approver.yaml

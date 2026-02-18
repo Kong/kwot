@@ -1,12 +1,13 @@
 .PHONY: help build clean install test run deps fmt lint dev docker-build \
-         test-coverage build-all run-all docs generate-workspaces perf-test perf-clean
+         test-coverage build-all run-all docs generate-workspaces perf-test perf-clean \
+         start stop reset
 
 # ============================================================================
 # Configuration
 # ============================================================================
 
 BINARY_NAME=kwot
-VERSION?=1.0.5
+VERSION?=1.0.6
 BUILD_DIR=bin
 DOCS_DIR=docs
 GOCMD=go
@@ -261,6 +262,22 @@ perf-full: perf-clean perf-quick
 ## WARNING: This will erase all Kong data
 perf-full-clean: perf-reset perf-full
 	@echo "✓ Full performance test with clean Kong database complete"
+
+## start: Start Kong using docker compose
+start:
+	cd perf-test && docker compose up -d
+
+## stop: Stop Kong using docker compose
+stop:
+	cd perf-test && docker compose down
+
+## reset: Reset Kong database (erase all data)
+reset:
+	@echo "Resetting Kong DB (this will erase all data)..."
+	docker exec -it kong-gateway-cp kong migrations reset -y
+	docker exec -it kong-gateway-cp kong migrations bootstrap -y
+	@echo "Restarting kong-gateway-cp container..."
+	docker restart kong-gateway-cp
 
 ## help: Show this help message
 help:

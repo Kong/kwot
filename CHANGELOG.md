@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.6] - 2026-02-18
+
+### Security
+
+- Upgraded Go toolchain from 1.25.5 to 1.26.0, resolving two `crypto/tls` vulnerabilities:
+  - **GO-2026-4340**: Handshake messages may be processed at the incorrect encryption level (fixed in Go 1.25.6+)
+  - **GO-2026-4337**: Unexpected TLS session resumption (fixed in Go 1.25.7+)
+- Updated `go.mod` to `go 1.26`
+- Updated all CI/CD workflow Go versions (`ci.yml`, `release.yml`, `scheduled-security-scan.yml`) to `1.26`
+- Pinned `golangci-lint-action` to `v6` with `v2.10.1` (built with Go 1.26) to fix linter version mismatch
+- Verified clean `govulncheck ./...` output: `No vulnerabilities found`
+
+### Added
+
+- Added `make start` / `make stop` targets as convenience wrappers for `docker compose up/down` in the `perf-test` directory
+- Added `make reset` target to reset Kong DB (migrations reset + bootstrap + container restart)
+- Added `config/demo5` workspace configuration
+
 ## [1.0.5] - 2026-01-29
 
 ### Fixed
@@ -20,8 +38,8 @@ All notable changes to this project will be documented in this file.
 
 ### Security
 
-- Verified and recommend building with Go 1.24.12, which patches critical TLS vulnerability GO-2026-4340 in the crypto/tls package
 - Updated Dockerfile and CI/CD workflows to build with Go 1.24.12 for consistency
+- Note: GO-2026-4340 (`crypto/tls` handshake encryption level vulnerability) was not fully resolved until Go 1.25.6+; fully addressed in v1.0.6
 
 ## [1.0.3] - 2026-01-27
 

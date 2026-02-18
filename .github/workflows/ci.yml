@@ -11,7 +11,7 @@ permissions:
   checks: write
 
 env:
-  GO_VERSION: "1.24.12"
+  GO_VERSION: "1.26"
 
 jobs:
   # Run linting and static analysis
@@ -26,9 +26,9 @@ jobs:
           cache: true
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v7
         with:
-          version: latest
+          version: v2.10.1
           args: --timeout=5m --verbose
 
       - name: fmt check
