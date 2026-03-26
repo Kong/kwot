@@ -738,17 +738,32 @@ func (p *Processor) DeleteWorkspace(workspaceName string) error {
 		logger.Errorf("Failed to delete RBAC users in workspace %s: %v", workspaceName, err)
 	}
 
+	// 16. Delete all keys (Kong Enterprise 3.1+)
+	logger.Infof("Step 16: Deleting keys from workspace %s", workspaceName)
+	if err := p.deleteAllWorkspaceKeys(workspaceName); err != nil {
+		logger.Errorf("Failed to delete keys in workspace %s: %v", workspaceName, err)
+	}
+
+	// 17. Delete all key-sets (Kong Enterprise 3.1+)
+	logger.Infof("Step 17: Deleting key-sets from workspace %s", workspaceName)
+	if err := p.deleteAllWorkspaceKeySets(workspaceName); err != nil {
+		logger.Errorf("Failed to delete key-sets in workspace %s: %v", workspaceName, err)
+	}
+
 	// Note: Do NOT auto-cleanup group role assignments
 	// Users must manually update groups-and-roles.yaml to maintain config integrity
 	logger.Warnf("Remember to remove references to workspace %s from groups-and-roles.yaml", workspaceName)
+
+	// Check for any remaining entities before attempting workspace deletion.
+	// Output is only visible with --verbose but is invaluable for diagnosing 400 errors.
+	p.debugLogRemainingEntities(workspaceName)
 
 	// Finally, delete the workspace itself using ID
 	path := fmt.Sprintf("/workspaces/%s", workspaceID)
 
 	resp, err := p.client.DELETE(path)
 	if err != nil {
-		// Try to provide more helpful error message
-		return fmt.Errorf("failed to delete workspace %s: %w\n  Make sure all child resources (services, routes, etc.) have been deleted first", workspaceName, err)
+		return fmt.Errorf("failed to delete workspace %s: %w -- workspace still has child resources that could not be removed; re-run with --verbose to see which entity types are still present", workspaceName, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -1870,6 +1885,199 @@ func (p *Processor) deleteAllWorkspaceCACertificates(workspaceName string) error
 	}
 
 	return nil
+}
+
+// deleteAllWorkspaceKeys deletes all keys from a workspace (Kong Enterprise 3.1+)
+func (p *Processor) deleteAllWorkspaceKeys(workspaceName string) error {
+	path := fmt.Sprintf("/%s/keys", workspaceName)
+	pageSize := 1000
+	offset := ""
+
+	for {
+		params := url.Values{}
+		params.Add("size", strconv.Itoa(pageSize))
+		if offset != "" {
+			params.Add("offset", offset)
+		}
+
+		var result struct {
+			Data []struct {
+				ID   string `json:"id"`
+				Name string `json:"name"`
+			} `json:"data"`
+			Offset string `json:"offset"`
+		}
+
+		if err := p.client.GetJSON(path, params, &result); err != nil {
+			logger.Debugf("No keys endpoint or failed to get keys in workspace %s: %v", workspaceName, err)
+			return nil
+		}
+
+		if len(result.Data) == 0 {
+			logger.Debugf("No keys found in workspace %s", workspaceName)
+			break
+		}
+
+		logger.Infof("Deleting %d keys from workspace %s", len(result.Data), workspaceName)
+
+		for _, key := range result.Data {
+			keyPath := fmt.Sprintf("/%s/keys/%s", workspaceName, key.ID)
+			if _, err := p.client.DELETE(keyPath); err != nil {
+				logger.Errorf("Failed to delete key %s: %v", key.Name, err)
+				continue
+			}
+			logger.Infof("Deleted key %s from workspace %s", key.Name, workspaceName)
+		}
+
+		if result.Offset == "" || len(result.Data) < pageSize {
+			break
+		}
+
+		offset = result.Offset
+	}
+
+	return nil
+}
+
+// deleteAllWorkspaceKeySets deletes all key-sets from a workspace (Kong Enterprise 3.1+)
+func (p *Processor) deleteAllWorkspaceKeySets(workspaceName string) error {
+	path := fmt.Sprintf("/%s/key-sets", workspaceName)
+	pageSize := 1000
+	offset := ""
+
+	for {
+		params := url.Values{}
+		params.Add("size", strconv.Itoa(pageSize))
+		if offset != "" {
+			params.Add("offset", offset)
+		}
+
+		var result struct {
+			Data []struct {
+				ID   string `json:"id"`
+				Name string `json:"name"`
+			} `json:"data"`
+			Offset string `json:"offset"`
+		}
+
+		if err := p.client.GetJSON(path, params, &result); err != nil {
+			logger.Debugf("No key-sets endpoint or failed to get key-sets in workspace %s: %v", workspaceName, err)
+			return nil
+		}
+
+		if len(result.Data) == 0 {
+			logger.Debugf("No key-sets found in workspace %s", workspaceName)
+			break
+		}
+
+		logger.Infof("Deleting %d key-sets from workspace %s", len(result.Data), workspaceName)
+
+		for _, ks := range result.Data {
+			ksPath := fmt.Sprintf("/%s/key-sets/%s", workspaceName, ks.ID)
+			if _, err := p.client.DELETE(ksPath); err != nil {
+				logger.Errorf("Failed to delete key-set %s: %v", ks.Name, err)
+				continue
+			}
+			logger.Infof("Deleted key-set %s from workspace %s", ks.Name, workspaceName)
+		}
+
+		if result.Offset == "" || len(result.Data) < pageSize {
+			break
+		}
+
+		offset = result.Offset
+	}
+
+	return nil
+}
+
+// countWorkspaceEntities paginates through all pages of a workspace entity endpoint
+// and returns the total count. Returns -1 if the endpoint could not be queried.
+func (p *Processor) countWorkspaceEntities(entityPath string) int {
+	pageSize := 1000
+	offset := ""
+	total := 0
+
+	for {
+		params := url.Values{}
+		params.Add("size", strconv.Itoa(pageSize))
+		if offset != "" {
+			params.Add("offset", offset)
+		}
+
+		var result struct {
+			Data   []interface{} `json:"data"`
+			Offset string        `json:"offset"`
+		}
+
+		if err := p.client.GetJSON(entityPath, params, &result); err != nil {
+			if total == 0 {
+				return -1 // endpoint unavailable or error on first page
+			}
+			break // partial count — stop here
+		}
+
+		total += len(result.Data)
+
+		if result.Offset == "" || len(result.Data) < pageSize {
+			break
+		}
+
+		offset = result.Offset
+	}
+
+	return total
+}
+
+// debugLogRemainingEntities paginates all workspace-scoped entity types and logs
+// exact counts for any that are non-zero. Only visible with --verbose. Call this
+// before the final workspace DELETE to diagnose 400 errors.
+func (p *Processor) debugLogRemainingEntities(workspaceName string) {
+	entityTypes := []struct {
+		label string
+		path  string
+	}{
+		{"services", fmt.Sprintf("/%s/services", workspaceName)},
+		{"routes", fmt.Sprintf("/%s/routes", workspaceName)},
+		{"consumers", fmt.Sprintf("/%s/consumers", workspaceName)},
+		{"consumer_groups", fmt.Sprintf("/%s/consumer_groups", workspaceName)},
+		{"plugins", fmt.Sprintf("/%s/plugins", workspaceName)},
+		{"upstreams", fmt.Sprintf("/%s/upstreams", workspaceName)},
+		{"certificates", fmt.Sprintf("/%s/certificates", workspaceName)},
+		{"ca_certificates", fmt.Sprintf("/%s/ca_certificates", workspaceName)},
+		{"snis", fmt.Sprintf("/%s/snis", workspaceName)},
+		{"vaults", fmt.Sprintf("/%s/vaults", workspaceName)},
+		{"keys", fmt.Sprintf("/%s/keys", workspaceName)},
+		{"key-sets", fmt.Sprintf("/%s/key-sets", workspaceName)},
+		{"rbac/roles", fmt.Sprintf("/%s/rbac/roles", workspaceName)},
+		{"rbac/users", fmt.Sprintf("/%s/rbac/users", workspaceName)},
+	}
+
+	type entityCount struct {
+		label string
+		count int
+	}
+
+	var remaining []entityCount
+	for _, e := range entityTypes {
+		n := p.countWorkspaceEntities(e.path)
+		if n == -1 {
+			logger.Debugf("  [pre-delete check] could not query %s (endpoint unavailable or error)", e.label)
+			continue
+		}
+		if n > 0 {
+			remaining = append(remaining, entityCount{e.label, n})
+		}
+	}
+
+	if len(remaining) == 0 {
+		logger.Debugf("[pre-delete check] workspace %s: no remaining entities found", workspaceName)
+	} else {
+		logger.Debugf("[pre-delete check] workspace %s still has entities — workspace DELETE may return 400", workspaceName)
+		for _, e := range remaining {
+			logger.Debugf("  still present: %s (%d)", e.label, e.count)
+		}
+	}
 }
 
 // applyPlugins applies workspace plugins

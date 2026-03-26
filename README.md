@@ -144,6 +144,43 @@ CONFIG_DIR=./config/
 
 See [CHEATSHEET.md](CHEATSHEET.md#environment-configuration) for all environment variables.
 
+## Group Configuration Layout
+
+`groups-and-roles.yaml` can live either at the config root (global) or inside a workspace subdirectory (per-workspace). Per-workspace takes priority.
+
+**Option A — Global file (single file for all workspaces):**
+```
+config/
+  groups-and-roles.yaml   # all workspaces' groups defined here
+  teamA/
+  teamB/
+```
+
+**Option B — Per-workspace files (one file per workspace, no global):**
+```
+config/
+  teamA/
+    groups-and-roles.yaml   # teamA groups only
+    workspace.yaml
+  teamB/
+    groups-and-roles.yaml   # teamB groups only
+    workspace.yaml
+```
+
+**Option C — Mixed (per-workspace overrides, global as fallback):**
+```
+config/
+  groups-and-roles.yaml     # fallback for workspaces without a local file
+  teamA/
+    groups-and-roles.yaml   # teamA uses this, global is ignored for teamA
+  teamB/                    # teamB falls back to global
+    workspace.yaml
+```
+
+Both YAML formats are supported in any location:
+- **Direct array:** `- group_name: ...`
+- **Structured (with `role_info` anchors):** `role_info: {...}` + `config: [...]`
+
 ## Performance Tuning: Concurrency
 
 kwot processes workspaces concurrently for faster execution. Control parallelism with `MAX_CONCURRENT_WORKSPACES`:
