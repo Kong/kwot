@@ -343,7 +343,7 @@ func (p *Processor) GetAllGroups() ([]models.GroupResponse, error) {
 		allGroups = append(allGroups, response.Data...)
 
 		// Check if there are more pages
-		if response.Offset == "" || len(response.Data) < pageSize {
+		if len(response.Data) == 0 || response.Offset == "" || len(response.Data) < pageSize {
 			break
 		}
 

@@ -198,6 +198,7 @@ func (p *Processor) ApplyRBACUsersForWorkspaces(selectedWorkspace string) error 
 
 	if len(errorList) > 0 {
 		logger.Warnf("Completed RBAC user application with %d error(s)", len(errorList))
+		return fmt.Errorf("failed to apply RBAC users for %d workspace(s); first error: %w", len(errorList), errorList[0])
 	}
 
 	return nil
@@ -948,21 +949,38 @@ func (p *Processor) removeGroupRoleAssignmentsForWorkspace(workspaceName string,
 
 // getWorkspaceID retrieves the ID of a workspace by name
 func (p *Processor) getWorkspaceID(workspaceName string) (string, error) {
-	var result struct {
-		Data []struct {
-			ID   string `json:"id"`
-			Name string `json:"name"`
-		} `json:"data"`
-	}
+	pageSize := 1000
+	offset := ""
 
-	if err := p.client.GetJSON("/workspaces", nil, &result); err != nil {
-		return "", fmt.Errorf("failed to get workspaces: %w", err)
-	}
-
-	for _, ws := range result.Data {
-		if ws.Name == workspaceName {
-			return ws.ID, nil
+	for {
+		params := url.Values{}
+		params.Add("size", strconv.Itoa(pageSize))
+		if offset != "" {
+			params.Add("offset", offset)
 		}
+
+		var result struct {
+			Data []struct {
+				ID   string `json:"id"`
+				Name string `json:"name"`
+			} `json:"data"`
+			Offset string `json:"offset"`
+		}
+
+		if err := p.client.GetJSON("/workspaces", params, &result); err != nil {
+			return "", fmt.Errorf("failed to get workspaces: %w", err)
+		}
+
+		for _, ws := range result.Data {
+			if ws.Name == workspaceName {
+				return ws.ID, nil
+			}
+		}
+
+		if result.Offset == "" || len(result.Data) < pageSize {
+			break
+		}
+		offset = result.Offset
 	}
 
 	return "", fmt.Errorf("workspace %s not found", workspaceName)
