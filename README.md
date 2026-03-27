@@ -56,6 +56,10 @@ When deleting workspaces, kwot automatically cleans up all workspace-scoped chil
 | **Certificates, SNIs, Upstreams** | ✅ Auto-deleted with workspace |
 | **Credentials & Vaults** (basic-auth, key-auth, hmac-auth, jwt, oauth2, mtls-auth) | ✅ Auto-deleted with workspace |
 | **Keys & Key Sets** (Kong Enterprise 3.1+) | ✅ Auto-deleted with workspace |
+| **Custom Plugin schemas** | ✅ Auto-deleted with workspace |
+| **DeGraphQL routes** (standalone + service-scoped) | ✅ Auto-deleted with workspace |
+| **OIDC JWK Sets** (`oic_jwks`) | ✅ Auto-deleted with workspace |
+| **Dev Portal Partials** | ✅ Auto-deleted with workspace |
 | **Group-role mappings & empty groups** | ✅ Auto-cleaned with workspace (see below) |
 
 #### Group cleanup during workspace deletion

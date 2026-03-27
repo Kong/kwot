@@ -13,6 +13,11 @@ All notable changes to this project will be documented in this file.
 - Per-workspace `groups-and-roles.yaml` support — place a `groups-and-roles.yaml` inside a workspace directory and it takes priority over the global file
 - Configuration File Reference section in README documenting all YAML schemas (`workspace.yaml`, `workspace-rbac-user.yaml`, `groups-and-roles.yaml`)
 - `IsDebugEnabled()` helper in logger to gate expensive debug-only API calls
+- Workspace deletion now cleans up additional Kong Enterprise entity types:
+  - Custom plugin schemas (`/custom-plugins`)
+  - Standalone DeGraphQL routes (`/degraphql_routes`)
+  - OIDC JWK sets (`/oic_jwks`)
+  - Dev Portal partials (`/partials`)
 
 ### Fixed
 
