@@ -169,7 +169,7 @@ See [CHEATSHEET.md](CHEATSHEET.md#environment-configuration) for all environment
 
 ## Configuration File Reference
 
-kwot reads three types of YAML files from your `CONFIG_DIR`. This section documents every field so you know exactly what to write.
+kwot primarily works with three core types of YAML files in your `CONFIG_DIR`, plus additional supporting YAML files (for example, a `root-workspace.yaml` and any external permission-set YAML files referenced from `workspace.yaml`). This section documents every field of these core config files so you know exactly what to write.
 
 ---
 

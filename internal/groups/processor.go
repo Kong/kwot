@@ -228,14 +228,19 @@ func (p *Processor) loadGroupConfig(selectedWorkspace string) ([]models.GroupDet
 		}
 		wsName := entry.Name()
 		localPath := filepath.Join(p.cfg.ConfigDir, wsName, groupConfigName)
-		if _, statErr := os.Stat(localPath); statErr == nil {
-			groups, err := p.parseGroupConfigFile(localPath)
-			if err != nil {
-				return nil, fmt.Errorf("failed to load groups for workspace %s: %w", wsName, err)
+		if _, statErr := os.Stat(localPath); statErr != nil {
+			if !errors.Is(statErr, os.ErrNotExist) {
+				return nil, fmt.Errorf("failed to stat local group config for workspace %s at %s: %w", wsName, localPath, statErr)
 			}
-			allGroups = append(allGroups, groups...)
-			workspacesWithLocalFile[wsName] = true
+			// No local file for this workspace; may fall back to global config.
+			continue
 		}
+		groups, err := p.parseGroupConfigFile(localPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load groups for workspace %s: %w", wsName, err)
+		}
+		allGroups = append(allGroups, groups...)
+		workspacesWithLocalFile[wsName] = true
 	}
 
 	// Include global entries for workspaces that don't have a local file.
