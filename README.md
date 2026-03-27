@@ -55,6 +55,25 @@ When deleting workspaces, kwot automatically cleans up all workspace-scoped chil
 | **Plugins, Consumer Groups, ACLs** | ✅ Auto-deleted with workspace |
 | **Certificates, SNIs, Upstreams** | ✅ Auto-deleted with workspace |
 | **Credentials & Vaults** (basic-auth, key-auth, hmac-auth, jwt, oauth2, mtls-auth) | ✅ Auto-deleted with workspace |
+| **Keys & Key Sets** (Kong Enterprise 3.1+) | ✅ Auto-deleted with workspace |
+| **Group-role mappings & empty groups** | ✅ Auto-cleaned with workspace (see below) |
+
+#### Group cleanup during workspace deletion
+
+Kong groups are **global** — a single group can hold role mappings across multiple workspaces. When you delete a workspace, kwot handles group cleanup automatically as Step 0 of the deletion sequence:
+
+1. **Role mappings for this workspace are removed** from every group that references it.
+2. **Groups that become empty** (all their role mappings belonged to this workspace) are **deleted automatically**.
+3. **Multi-workspace groups** that still have role mappings in other workspaces are **left untouched** — only the mappings for the deleted workspace are removed.
+
+Example log output during `delete workspaces -n teamA --force`:
+```
+Step 0: Removing group-role assignments for workspace teamA
+Removed role assignment from group 'teamA-admin-group' (workspace: teamA)
+Group 'teamA-admin-group' has no remaining role assignments after workspace teamA removal — deleting group
+Removed role assignment from group 'platform-admins' (workspace: teamA)
+Group 'platform-admins' retains 2 role assignment(s) in other workspace(s) — group preserved
+```
 
 **Note:** For comprehensive API configuration management (services, routes, plugins at scale), use [decK](https://github.com/Kong/deck). kwot handles workspace-level plugin declarations; decK handles API-layer resource management.
 

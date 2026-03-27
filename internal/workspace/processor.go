@@ -611,10 +611,15 @@ func (p *Processor) DeleteWorkspace(workspaceName string) error {
 
 	if p.dryRun {
 		logger.Warnf("DRY-RUN: Would delete workspace %s (ID: %s) and all child resources", workspaceName, workspaceID)
+		logger.Warnf("DRY-RUN: Would also remove group-role assignments for workspace %s; groups that become empty would be deleted", workspaceName)
 		return nil
 	}
 
-	// Step 0: Remove group-role assignments that reference this workspace
+	// Step 0: Remove group-role assignments that reference this workspace.
+	// Groups are global in Kong — a group can hold roles across many workspaces.
+	// We remove only the role mappings that belong to this workspace.
+	// If a group ends up with no remaining role assignments it is deleted automatically.
+	// Groups that still have roles in other workspaces are left untouched.
 	logger.Infof("Step 0: Removing group-role assignments for workspace %s", workspaceName)
 	if err := p.removeGroupRoleAssignmentsForWorkspace(workspaceName, workspaceID); err != nil {
 		logger.Errorf("Failed to remove group-role assignments: %v", err)
@@ -750,10 +755,6 @@ func (p *Processor) DeleteWorkspace(workspaceName string) error {
 		logger.Errorf("Failed to delete key-sets in workspace %s: %v", workspaceName, err)
 	}
 
-	// Note: Do NOT auto-cleanup group role assignments
-	// Users must manually update groups-and-roles.yaml to maintain config integrity
-	logger.Warnf("Remember to remove references to workspace %s from groups-and-roles.yaml", workspaceName)
-
 	// Check for any remaining entities before attempting workspace deletion.
 	// Gated behind debug level to avoid unnecessary API calls on every deletion (#3).
 	if logger.IsDebugEnabled() {
@@ -842,7 +843,6 @@ func (p *Processor) removeGroupRoleAssignmentsForWorkspace(workspaceName string,
 
 	// Check each group for role assignments that reference this workspace
 	for _, group := range allGroups {
-		// Get all roles assigned to this group
 		rolesPath := fmt.Sprintf("/groups/%s/roles", group.ID)
 		var rolesResult struct {
 			Data []map[string]interface{} `json:"data"`
@@ -857,50 +857,66 @@ func (p *Processor) removeGroupRoleAssignmentsForWorkspace(workspaceName string,
 			continue
 		}
 
+		totalRoles := len(rolesResult.Data)
+		var rolesRemovedFromGroup int
+
 		// Delete any role assignments that reference this workspace
 		for _, roleAssignment := range rolesResult.Data {
-			// Extract workspace ID from nested object
 			ws, ok := roleAssignment["workspace"].(map[string]interface{})
 			if !ok {
 				continue
 			}
-
 			wsID, ok := ws["id"].(string)
 			if !ok || wsID != workspaceID {
 				continue
 			}
 
-			// Extract RBAC role ID from nested object
 			rbacRole, ok := roleAssignment["rbac_role"].(map[string]interface{})
 			if !ok {
 				continue
 			}
-
 			roleID, ok := rbacRole["id"].(string)
 			if !ok {
 				continue
 			}
 
-			// Delete the role assignment using query parameters
-			// No ID field exists, use workspace_id and rbac_role_id as identifiers
 			params := url.Values{}
 			params.Add("workspace_id", workspaceID)
 			params.Add("rbac_role_id", roleID)
 
-			rolesPath := fmt.Sprintf("/groups/%s/roles", group.ID)
 			if _, err := p.client.DELETEWithParams(rolesPath, params); err != nil {
 				logger.Errorf("Failed to delete role assignment from group %s: %v", group.Name, err)
 				continue
 			}
-			logger.Infof("Removed role assignment from group %s (workspace: %s)", group.Name, workspaceName)
+			logger.Infof("Removed role assignment from group '%s' (workspace: %s)", group.Name, workspaceName)
 			removedCount++
+			rolesRemovedFromGroup++
+		}
+
+		if rolesRemovedFromGroup == 0 {
+			continue
+		}
+
+		remainingRoles := totalRoles - rolesRemovedFromGroup
+		if remainingRoles == 0 {
+			// All role assignments belonged to this workspace — group is now empty, delete it
+			logger.Infof("Group '%s' has no remaining role assignments after workspace %s removal — deleting group", group.Name, workspaceName)
+			deletePath := fmt.Sprintf("/groups/%s", group.ID)
+			if _, err := p.client.DELETE(deletePath); err != nil {
+				logger.Errorf("Failed to delete empty group '%s': %v", group.Name, err)
+			} else {
+				logger.Infof("Deleted empty group '%s'", group.Name)
+			}
+		} else {
+			// Group still has role mappings in other workspaces — leave it
+			logger.Infof("Group '%s' retains %d role assignment(s) in other workspace(s) — group preserved", group.Name, remainingRoles)
 		}
 	}
 
 	if removedCount == 0 {
 		logger.Debugf("No group-role assignments found for workspace %s", workspaceName)
 	} else {
-		logger.Infof("Removed %d group-role assignments for workspace %s", removedCount, workspaceName)
+		logger.Infof("Removed %d group-role assignment(s) for workspace %s", removedCount, workspaceName)
 	}
 
 	return nil
