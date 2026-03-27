@@ -198,6 +198,7 @@ func (p *Processor) ApplyRBACUsersForWorkspaces(selectedWorkspace string) error 
 
 	if len(errorList) > 0 {
 		logger.Warnf("Completed RBAC user application with %d error(s)", len(errorList))
+		return fmt.Errorf("failed to apply RBAC users for %d workspace(s); first error: %w", len(errorList), errorList[0])
 	}
 
 	return nil
@@ -611,10 +612,15 @@ func (p *Processor) DeleteWorkspace(workspaceName string) error {
 
 	if p.dryRun {
 		logger.Warnf("DRY-RUN: Would delete workspace %s (ID: %s) and all child resources", workspaceName, workspaceID)
+		logger.Warnf("DRY-RUN: Would also remove group-role assignments for workspace %s; groups that become empty would be deleted", workspaceName)
 		return nil
 	}
 
-	// Step 0: Remove group-role assignments that reference this workspace
+	// Step 0: Remove group-role assignments that reference this workspace.
+	// Groups are global in Kong — a group can hold roles across many workspaces.
+	// We remove only the role mappings that belong to this workspace.
+	// If a group ends up with no remaining role assignments it is deleted automatically.
+	// Groups that still have roles in other workspaces are left untouched.
 	logger.Infof("Step 0: Removing group-role assignments for workspace %s", workspaceName)
 	if err := p.removeGroupRoleAssignmentsForWorkspace(workspaceName, workspaceID); err != nil {
 		logger.Errorf("Failed to remove group-role assignments: %v", err)
@@ -660,95 +666,132 @@ func (p *Processor) DeleteWorkspace(workspaceName string) error {
 		logger.Errorf("Failed to delete mtls-auth credentials in workspace %s: %v", workspaceName, err)
 	}
 
-	// 3. Delete all services (which cascade to routes)
-	logger.Infof("Step 3: Deleting services from workspace %s", workspaceName)
+	// 3. Delete standalone DeGraphQL routes (service-scoped ones cascade with Step 4)
+	logger.Infof("Step 3: Deleting DeGraphQL routes from workspace %s", workspaceName)
+	if err := p.deleteAllWorkspaceDeGraphQLRoutes(workspaceName); err != nil {
+		logger.Errorf("Failed to delete DeGraphQL routes in workspace %s: %v", workspaceName, err)
+	}
+
+	// 4. Delete all services (which cascade to routes and service-scoped degraphql_routes)
+	logger.Infof("Step 4: Deleting services from workspace %s", workspaceName)
 	if err := p.deleteAllWorkspaceServices(workspaceName); err != nil {
 		logger.Errorf("Failed to delete services in workspace %s: %v", workspaceName, err)
 	}
 
-	// 4. Delete all routes (in case any are orphaned)
-	logger.Infof("Step 4: Deleting routes from workspace %s", workspaceName)
+	// 5. Delete all routes (in case any are orphaned)
+	logger.Infof("Step 5: Deleting routes from workspace %s", workspaceName)
 	if err := p.deleteAllWorkspaceRoutes(workspaceName); err != nil {
 		logger.Errorf("Failed to delete routes in workspace %s: %v", workspaceName, err)
 	}
 
-	// 5. Delete all consumers
-	logger.Infof("Step 5: Deleting consumers from workspace %s", workspaceName)
+	// 6. Delete all consumers
+	logger.Infof("Step 6: Deleting consumers from workspace %s", workspaceName)
 	if err := p.deleteAllWorkspaceConsumers(workspaceName); err != nil {
 		logger.Errorf("Failed to delete consumers in workspace %s: %v", workspaceName, err)
 	}
 
-	// 6. Delete all consumer groups
-	logger.Infof("Step 6: Deleting consumer groups from workspace %s", workspaceName)
+	// 7. Delete all consumer groups
+	logger.Infof("Step 7: Deleting consumer groups from workspace %s", workspaceName)
 	if err := p.deleteAllWorkspaceConsumerGroups(workspaceName); err != nil {
 		logger.Errorf("Failed to delete consumer groups in workspace %s: %v", workspaceName, err)
 	}
 
-	// 7. Delete all upstreams
-	logger.Infof("Step 7: Deleting upstreams from workspace %s", workspaceName)
+	// 8. Delete all upstreams
+	logger.Infof("Step 8: Deleting upstreams from workspace %s", workspaceName)
 	if err := p.deleteAllWorkspaceUpstreams(workspaceName); err != nil {
 		logger.Errorf("Failed to delete upstreams in workspace %s: %v", workspaceName, err)
 	}
 
-	// 8. Delete all certificates
-	logger.Infof("Step 8: Deleting certificates from workspace %s", workspaceName)
+	// 9. Delete all certificates
+	logger.Infof("Step 9: Deleting certificates from workspace %s", workspaceName)
 	if err := p.deleteAllWorkspaceCertificates(workspaceName); err != nil {
 		logger.Errorf("Failed to delete certificates in workspace %s: %v", workspaceName, err)
 	}
 
-	// 9. Delete all CA certificates
-	logger.Infof("Step 9: Deleting CA certificates from workspace %s", workspaceName)
+	// 10. Delete all CA certificates
+	logger.Infof("Step 10: Deleting CA certificates from workspace %s", workspaceName)
 	if err := p.deleteAllWorkspaceCACertificates(workspaceName); err != nil {
 		logger.Errorf("Failed to delete CA certificates in workspace %s: %v", workspaceName, err)
 	}
 
-	// 10. Delete all SNIs
-	logger.Infof("Step 10: Deleting SNIs from workspace %s", workspaceName)
+	// 11. Delete all SNIs
+	logger.Infof("Step 11: Deleting SNIs from workspace %s", workspaceName)
 	if err := p.deleteAllWorkspaceSNIs(workspaceName); err != nil {
 		logger.Errorf("Failed to delete SNIs in workspace %s: %v", workspaceName, err)
 	}
 
-	// 11. Delete all vaults
-	logger.Infof("Step 11: Deleting vaults from workspace %s", workspaceName)
+	// 12. Delete all vaults
+	logger.Infof("Step 12: Deleting vaults from workspace %s", workspaceName)
 	if err := p.deleteAllWorkspaceVaults(workspaceName); err != nil {
 		logger.Errorf("Failed to delete vaults in workspace %s: %v", workspaceName, err)
 	}
 
-	// 12. Delete all plugins in the workspace
-	logger.Infof("Step 12: Deleting plugins from workspace %s", workspaceName)
+	// 13. Delete all plugins in the workspace
+	logger.Infof("Step 13: Deleting plugins from workspace %s", workspaceName)
 	if err := p.deleteAllWorkspacePlugins(workspaceName); err != nil {
 		logger.Errorf("Failed to delete plugins in workspace %s: %v", workspaceName, err)
 	}
 
-	// 13. Delete all roles in the workspace
-	logger.Infof("Step 13: Deleting roles from workspace %s", workspaceName)
+	// 14. Delete all custom plugin schemas in the workspace
+	logger.Infof("Step 14: Deleting custom plugins from workspace %s", workspaceName)
+	if err := p.deleteAllWorkspaceCustomPlugins(workspaceName); err != nil {
+		logger.Errorf("Failed to delete custom plugins in workspace %s: %v", workspaceName, err)
+	}
+
+	// 15. Delete all roles in the workspace
+	logger.Infof("Step 15: Deleting roles from workspace %s", workspaceName)
 	if err := p.deleteWorkspaceRoles(workspaceName); err != nil {
 		logger.Errorf("Failed to delete roles in workspace %s: %v", workspaceName, err)
 	}
 
-	// 14. Delete all users in the workspace
-	logger.Infof("Step 14: Deleting users from workspace %s", workspaceName)
+	// 16. Delete all users in the workspace
+	logger.Infof("Step 16: Deleting users from workspace %s", workspaceName)
 	if err := p.deleteWorkspaceUsers(workspaceName); err != nil {
 		logger.Errorf("Failed to delete users in workspace %s: %v", workspaceName, err)
 	}
 
-	// 15. Delete all RBAC users in the workspace (workspace-scoped users)
-	logger.Infof("Step 15: Deleting RBAC users from workspace %s", workspaceName)
+	// 17. Delete all RBAC users in the workspace (workspace-scoped users)
+	logger.Infof("Step 17: Deleting RBAC users from workspace %s", workspaceName)
 	if err := p.deleteAllWorkspaceRBACUsers(workspaceName); err != nil {
 		logger.Errorf("Failed to delete RBAC users in workspace %s: %v", workspaceName, err)
 	}
 
-	// Note: Do NOT auto-cleanup group role assignments
-	// Users must manually update groups-and-roles.yaml to maintain config integrity
-	logger.Warnf("Remember to remove references to workspace %s from groups-and-roles.yaml", workspaceName)
+	// 18. Delete all keys (Kong Enterprise 3.1+)
+	logger.Infof("Step 18: Deleting keys from workspace %s", workspaceName)
+	if err := p.deleteAllWorkspaceKeys(workspaceName); err != nil {
+		logger.Errorf("Failed to delete keys in workspace %s: %v", workspaceName, err)
+	}
+
+	// 19. Delete all key-sets (Kong Enterprise 3.1+)
+	logger.Infof("Step 19: Deleting key-sets from workspace %s", workspaceName)
+	if err := p.deleteAllWorkspaceKeySets(workspaceName); err != nil {
+		logger.Errorf("Failed to delete key-sets in workspace %s: %v", workspaceName, err)
+	}
+
+	// 20. Delete all OIDC JWK sets (Kong Enterprise OIDC plugin)
+	logger.Infof("Step 20: Deleting OIDC JWK sets from workspace %s", workspaceName)
+	if err := p.deleteAllWorkspaceOIDCJWKs(workspaceName); err != nil {
+		logger.Errorf("Failed to delete OIDC JWK sets in workspace %s: %v", workspaceName, err)
+	}
+
+	// 21. Delete all Dev Portal partials
+	logger.Infof("Step 21: Deleting Dev Portal partials from workspace %s", workspaceName)
+	if err := p.deleteAllWorkspacePartials(workspaceName); err != nil {
+		logger.Errorf("Failed to delete Dev Portal partials in workspace %s: %v", workspaceName, err)
+	}
+
+	// Check for any remaining entities before attempting workspace deletion.
+	// Gated behind debug level to avoid unnecessary API calls on every deletion (#3).
+	if logger.IsDebugEnabled() {
+		p.debugLogRemainingEntities(workspaceName)
+	}
 
 	// Finally, delete the workspace itself using ID
 	path := fmt.Sprintf("/workspaces/%s", workspaceID)
 
 	resp, err := p.client.DELETE(path)
 	if err != nil {
-		// Try to provide more helpful error message
-		return fmt.Errorf("failed to delete workspace %s: %w\n  Make sure all child resources (services, routes, etc.) have been deleted first", workspaceName, err)
+		return fmt.Errorf("failed to delete workspace %s: %w -- workspace still has child resources that could not be removed; re-run with --verbose to see which entity types are still present", workspaceName, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -825,7 +868,6 @@ func (p *Processor) removeGroupRoleAssignmentsForWorkspace(workspaceName string,
 
 	// Check each group for role assignments that reference this workspace
 	for _, group := range allGroups {
-		// Get all roles assigned to this group
 		rolesPath := fmt.Sprintf("/groups/%s/roles", group.ID)
 		var rolesResult struct {
 			Data []map[string]interface{} `json:"data"`
@@ -840,50 +882,66 @@ func (p *Processor) removeGroupRoleAssignmentsForWorkspace(workspaceName string,
 			continue
 		}
 
+		totalRoles := len(rolesResult.Data)
+		var rolesRemovedFromGroup int
+
 		// Delete any role assignments that reference this workspace
 		for _, roleAssignment := range rolesResult.Data {
-			// Extract workspace ID from nested object
 			ws, ok := roleAssignment["workspace"].(map[string]interface{})
 			if !ok {
 				continue
 			}
-
 			wsID, ok := ws["id"].(string)
 			if !ok || wsID != workspaceID {
 				continue
 			}
 
-			// Extract RBAC role ID from nested object
 			rbacRole, ok := roleAssignment["rbac_role"].(map[string]interface{})
 			if !ok {
 				continue
 			}
-
 			roleID, ok := rbacRole["id"].(string)
 			if !ok {
 				continue
 			}
 
-			// Delete the role assignment using query parameters
-			// No ID field exists, use workspace_id and rbac_role_id as identifiers
 			params := url.Values{}
 			params.Add("workspace_id", workspaceID)
 			params.Add("rbac_role_id", roleID)
 
-			rolesPath := fmt.Sprintf("/groups/%s/roles", group.ID)
 			if _, err := p.client.DELETEWithParams(rolesPath, params); err != nil {
 				logger.Errorf("Failed to delete role assignment from group %s: %v", group.Name, err)
 				continue
 			}
-			logger.Infof("Removed role assignment from group %s (workspace: %s)", group.Name, workspaceName)
+			logger.Infof("Removed role assignment from group '%s' (workspace: %s)", group.Name, workspaceName)
 			removedCount++
+			rolesRemovedFromGroup++
+		}
+
+		if rolesRemovedFromGroup == 0 {
+			continue
+		}
+
+		remainingRoles := totalRoles - rolesRemovedFromGroup
+		if remainingRoles == 0 {
+			// All role assignments belonged to this workspace — group is now empty, delete it
+			logger.Infof("Group '%s' has no remaining role assignments after workspace %s removal — deleting group", group.Name, workspaceName)
+			deletePath := fmt.Sprintf("/groups/%s", group.ID)
+			if _, err := p.client.DELETE(deletePath); err != nil {
+				logger.Errorf("Failed to delete empty group '%s': %v", group.Name, err)
+			} else {
+				logger.Infof("Deleted empty group '%s'", group.Name)
+			}
+		} else {
+			// Group still has role mappings in other workspaces — leave it
+			logger.Infof("Group '%s' retains %d role assignment(s) in other workspace(s) — group preserved", group.Name, remainingRoles)
 		}
 	}
 
 	if removedCount == 0 {
 		logger.Debugf("No group-role assignments found for workspace %s", workspaceName)
 	} else {
-		logger.Infof("Removed %d group-role assignments for workspace %s", removedCount, workspaceName)
+		logger.Infof("Removed %d group-role assignment(s) for workspace %s", removedCount, workspaceName)
 	}
 
 	return nil
@@ -891,21 +949,38 @@ func (p *Processor) removeGroupRoleAssignmentsForWorkspace(workspaceName string,
 
 // getWorkspaceID retrieves the ID of a workspace by name
 func (p *Processor) getWorkspaceID(workspaceName string) (string, error) {
-	var result struct {
-		Data []struct {
-			ID   string `json:"id"`
-			Name string `json:"name"`
-		} `json:"data"`
-	}
+	pageSize := 1000
+	offset := ""
 
-	if err := p.client.GetJSON("/workspaces", nil, &result); err != nil {
-		return "", fmt.Errorf("failed to get workspaces: %w", err)
-	}
-
-	for _, ws := range result.Data {
-		if ws.Name == workspaceName {
-			return ws.ID, nil
+	for {
+		params := url.Values{}
+		params.Add("size", strconv.Itoa(pageSize))
+		if offset != "" {
+			params.Add("offset", offset)
 		}
+
+		var result struct {
+			Data []struct {
+				ID   string `json:"id"`
+				Name string `json:"name"`
+			} `json:"data"`
+			Offset string `json:"offset"`
+		}
+
+		if err := p.client.GetJSON("/workspaces", params, &result); err != nil {
+			return "", fmt.Errorf("failed to get workspaces: %w", err)
+		}
+
+		for _, ws := range result.Data {
+			if ws.Name == workspaceName {
+				return ws.ID, nil
+			}
+		}
+
+		if result.Offset == "" || len(result.Data) < pageSize {
+			break
+		}
+		offset = result.Offset
 	}
 
 	return "", fmt.Errorf("workspace %s not found", workspaceName)
@@ -1870,6 +1945,404 @@ func (p *Processor) deleteAllWorkspaceCACertificates(workspaceName string) error
 	}
 
 	return nil
+}
+
+// deleteAllWorkspaceKeys deletes all keys from a workspace (Kong Enterprise 3.1+)
+func (p *Processor) deleteAllWorkspaceKeys(workspaceName string) error {
+	path := fmt.Sprintf("/%s/keys", workspaceName)
+	pageSize := 1000
+	offset := ""
+
+	for {
+		params := url.Values{}
+		params.Add("size", strconv.Itoa(pageSize))
+		if offset != "" {
+			params.Add("offset", offset)
+		}
+
+		var result struct {
+			Data []struct {
+				ID   string `json:"id"`
+				Name string `json:"name"`
+			} `json:"data"`
+			Offset string `json:"offset"`
+		}
+
+		if err := p.client.GetJSON(path, params, &result); err != nil {
+			logger.Debugf("No keys endpoint or failed to get keys in workspace %s: %v", workspaceName, err)
+			return nil
+		}
+
+		if len(result.Data) == 0 {
+			logger.Debugf("No keys found in workspace %s", workspaceName)
+			break
+		}
+
+		logger.Infof("Deleting %d keys from workspace %s", len(result.Data), workspaceName)
+
+		for _, key := range result.Data {
+			keyPath := fmt.Sprintf("/%s/keys/%s", workspaceName, key.ID)
+			if _, err := p.client.DELETE(keyPath); err != nil {
+				logger.Errorf("Failed to delete key %s: %v", key.Name, err)
+				continue
+			}
+			logger.Infof("Deleted key %s from workspace %s", key.Name, workspaceName)
+		}
+
+		if result.Offset == "" || len(result.Data) < pageSize {
+			break
+		}
+
+		offset = result.Offset
+	}
+
+	return nil
+}
+
+// deleteAllWorkspaceKeySets deletes all key-sets from a workspace (Kong Enterprise 3.1+)
+func (p *Processor) deleteAllWorkspaceKeySets(workspaceName string) error {
+	path := fmt.Sprintf("/%s/key-sets", workspaceName)
+	pageSize := 1000
+	offset := ""
+
+	for {
+		params := url.Values{}
+		params.Add("size", strconv.Itoa(pageSize))
+		if offset != "" {
+			params.Add("offset", offset)
+		}
+
+		var result struct {
+			Data []struct {
+				ID   string `json:"id"`
+				Name string `json:"name"`
+			} `json:"data"`
+			Offset string `json:"offset"`
+		}
+
+		if err := p.client.GetJSON(path, params, &result); err != nil {
+			logger.Debugf("No key-sets endpoint or failed to get key-sets in workspace %s: %v", workspaceName, err)
+			return nil
+		}
+
+		if len(result.Data) == 0 {
+			logger.Debugf("No key-sets found in workspace %s", workspaceName)
+			break
+		}
+
+		logger.Infof("Deleting %d key-sets from workspace %s", len(result.Data), workspaceName)
+
+		for _, ks := range result.Data {
+			ksPath := fmt.Sprintf("/%s/key-sets/%s", workspaceName, ks.ID)
+			if _, err := p.client.DELETE(ksPath); err != nil {
+				logger.Errorf("Failed to delete key-set %s: %v", ks.Name, err)
+				continue
+			}
+			logger.Infof("Deleted key-set %s from workspace %s", ks.Name, workspaceName)
+		}
+
+		if result.Offset == "" || len(result.Data) < pageSize {
+			break
+		}
+
+		offset = result.Offset
+	}
+
+	return nil
+}
+
+// deleteAllWorkspaceDeGraphQLRoutes deletes standalone DeGraphQL routes from a workspace.
+// Service-scoped degraphql_routes cascade-delete with their parent service (Step 4).
+func (p *Processor) deleteAllWorkspaceDeGraphQLRoutes(workspaceName string) error {
+	path := fmt.Sprintf("/%s/degraphql_routes", workspaceName)
+	pageSize := 1000
+	offset := ""
+
+	for {
+		params := url.Values{}
+		params.Add("size", strconv.Itoa(pageSize))
+		if offset != "" {
+			params.Add("offset", offset)
+		}
+
+		var result struct {
+			Data []struct {
+				ID  string `json:"id"`
+				URI string `json:"uri"`
+			} `json:"data"`
+			Offset string `json:"offset"`
+		}
+
+		if err := p.client.GetJSON(path, params, &result); err != nil {
+			logger.Debugf("No degraphql_routes endpoint or failed to get DeGraphQL routes in workspace %s: %v", workspaceName, err)
+			return nil
+		}
+
+		if len(result.Data) == 0 {
+			logger.Debugf("No DeGraphQL routes found in workspace %s", workspaceName)
+			break
+		}
+
+		logger.Infof("Deleting %d DeGraphQL routes from workspace %s", len(result.Data), workspaceName)
+
+		for _, route := range result.Data {
+			routePath := fmt.Sprintf("/%s/degraphql_routes/%s", workspaceName, route.ID)
+			if _, err := p.client.DELETE(routePath); err != nil {
+				logger.Errorf("Failed to delete DeGraphQL route %s: %v", route.ID, err)
+				continue
+			}
+			logger.Infof("Deleted DeGraphQL route %s from workspace %s", route.ID, workspaceName)
+		}
+
+		if result.Offset == "" || len(result.Data) < pageSize {
+			break
+		}
+
+		offset = result.Offset
+	}
+
+	return nil
+}
+
+// deleteAllWorkspaceCustomPlugins deletes all custom plugin schemas from a workspace.
+func (p *Processor) deleteAllWorkspaceCustomPlugins(workspaceName string) error {
+	path := fmt.Sprintf("/%s/custom-plugins", workspaceName)
+	pageSize := 1000
+	offset := ""
+
+	for {
+		params := url.Values{}
+		params.Add("size", strconv.Itoa(pageSize))
+		if offset != "" {
+			params.Add("offset", offset)
+		}
+
+		var result struct {
+			Data []struct {
+				ID   string `json:"id"`
+				Name string `json:"name"`
+			} `json:"data"`
+			Offset string `json:"offset"`
+		}
+
+		if err := p.client.GetJSON(path, params, &result); err != nil {
+			logger.Debugf("No custom-plugins endpoint or failed to get custom plugins in workspace %s: %v", workspaceName, err)
+			return nil
+		}
+
+		if len(result.Data) == 0 {
+			logger.Debugf("No custom plugins found in workspace %s", workspaceName)
+			break
+		}
+
+		logger.Infof("Deleting %d custom plugins from workspace %s", len(result.Data), workspaceName)
+
+		for _, plugin := range result.Data {
+			pluginPath := fmt.Sprintf("/%s/custom-plugins/%s", workspaceName, plugin.ID)
+			if _, err := p.client.DELETE(pluginPath); err != nil {
+				logger.Errorf("Failed to delete custom plugin %s: %v", plugin.Name, err)
+				continue
+			}
+			logger.Infof("Deleted custom plugin %s from workspace %s", plugin.Name, workspaceName)
+		}
+
+		if result.Offset == "" || len(result.Data) < pageSize {
+			break
+		}
+
+		offset = result.Offset
+	}
+
+	return nil
+}
+
+// deleteAllWorkspaceOIDCJWKs deletes all OIDC JWK sets from a workspace.
+func (p *Processor) deleteAllWorkspaceOIDCJWKs(workspaceName string) error {
+	path := fmt.Sprintf("/%s/oic_jwks", workspaceName)
+	pageSize := 1000
+	offset := ""
+
+	for {
+		params := url.Values{}
+		params.Add("size", strconv.Itoa(pageSize))
+		if offset != "" {
+			params.Add("offset", offset)
+		}
+
+		var result struct {
+			Data []struct {
+				ID string `json:"id"`
+			} `json:"data"`
+			Offset string `json:"offset"`
+		}
+
+		if err := p.client.GetJSON(path, params, &result); err != nil {
+			logger.Debugf("No oic_jwks endpoint or failed to get OIDC JWKs in workspace %s: %v", workspaceName, err)
+			return nil
+		}
+
+		if len(result.Data) == 0 {
+			logger.Debugf("No OIDC JWK sets found in workspace %s", workspaceName)
+			break
+		}
+
+		logger.Infof("Deleting %d OIDC JWK sets from workspace %s", len(result.Data), workspaceName)
+
+		for _, jwk := range result.Data {
+			jwkPath := fmt.Sprintf("/%s/oic_jwks/%s", workspaceName, jwk.ID)
+			if _, err := p.client.DELETE(jwkPath); err != nil {
+				logger.Errorf("Failed to delete OIDC JWK set %s: %v", jwk.ID, err)
+				continue
+			}
+			logger.Infof("Deleted OIDC JWK set %s from workspace %s", jwk.ID, workspaceName)
+		}
+
+		if result.Offset == "" || len(result.Data) < pageSize {
+			break
+		}
+
+		offset = result.Offset
+	}
+
+	return nil
+}
+
+// deleteAllWorkspacePartials deletes all Dev Portal partials from a workspace.
+func (p *Processor) deleteAllWorkspacePartials(workspaceName string) error {
+	path := fmt.Sprintf("/%s/partials", workspaceName)
+	pageSize := 1000
+	offset := ""
+
+	for {
+		params := url.Values{}
+		params.Add("size", strconv.Itoa(pageSize))
+		if offset != "" {
+			params.Add("offset", offset)
+		}
+
+		var result struct {
+			Data []struct {
+				ID   string `json:"id"`
+				Name string `json:"name"`
+			} `json:"data"`
+			Offset string `json:"offset"`
+		}
+
+		if err := p.client.GetJSON(path, params, &result); err != nil {
+			logger.Debugf("No partials endpoint or failed to get Dev Portal partials in workspace %s: %v", workspaceName, err)
+			return nil
+		}
+
+		if len(result.Data) == 0 {
+			logger.Debugf("No Dev Portal partials found in workspace %s", workspaceName)
+			break
+		}
+
+		logger.Infof("Deleting %d Dev Portal partials from workspace %s", len(result.Data), workspaceName)
+
+		for _, partial := range result.Data {
+			partialPath := fmt.Sprintf("/%s/partials/%s", workspaceName, partial.ID)
+			if _, err := p.client.DELETE(partialPath); err != nil {
+				logger.Errorf("Failed to delete Dev Portal partial %s: %v", partial.Name, err)
+				continue
+			}
+			logger.Infof("Deleted Dev Portal partial %s from workspace %s", partial.Name, workspaceName)
+		}
+
+		if result.Offset == "" || len(result.Data) < pageSize {
+			break
+		}
+
+		offset = result.Offset
+	}
+
+	return nil
+}
+
+// countWorkspaceEntities paginates through all pages of a workspace entity endpoint
+// and returns the total count. Returns -1 if the endpoint could not be queried.
+func (p *Processor) countWorkspaceEntities(entityPath string) int {
+	pageSize := 1000
+	offset := ""
+	total := 0
+
+	for {
+		params := url.Values{}
+		params.Add("size", strconv.Itoa(pageSize))
+		if offset != "" {
+			params.Add("offset", offset)
+		}
+
+		var result struct {
+			Data   []interface{} `json:"data"`
+			Offset string        `json:"offset"`
+		}
+
+		if err := p.client.GetJSON(entityPath, params, &result); err != nil {
+			return -1 // endpoint unavailable or paging error — count unreliable
+		}
+
+		total += len(result.Data)
+
+		if result.Offset == "" || len(result.Data) < pageSize {
+			break
+		}
+
+		offset = result.Offset
+	}
+
+	return total
+}
+
+// debugLogRemainingEntities paginates all workspace-scoped entity types and logs
+// exact counts for any that are non-zero. Only visible with --verbose. Call this
+// before the final workspace DELETE to diagnose 400 errors.
+func (p *Processor) debugLogRemainingEntities(workspaceName string) {
+	entityTypes := []struct {
+		label string
+		path  string
+	}{
+		{"services", fmt.Sprintf("/%s/services", workspaceName)},
+		{"routes", fmt.Sprintf("/%s/routes", workspaceName)},
+		{"consumers", fmt.Sprintf("/%s/consumers", workspaceName)},
+		{"consumer_groups", fmt.Sprintf("/%s/consumer_groups", workspaceName)},
+		{"plugins", fmt.Sprintf("/%s/plugins", workspaceName)},
+		{"upstreams", fmt.Sprintf("/%s/upstreams", workspaceName)},
+		{"certificates", fmt.Sprintf("/%s/certificates", workspaceName)},
+		{"ca_certificates", fmt.Sprintf("/%s/ca_certificates", workspaceName)},
+		{"snis", fmt.Sprintf("/%s/snis", workspaceName)},
+		{"vaults", fmt.Sprintf("/%s/vaults", workspaceName)},
+		{"keys", fmt.Sprintf("/%s/keys", workspaceName)},
+		{"key-sets", fmt.Sprintf("/%s/key-sets", workspaceName)},
+		{"rbac/roles", fmt.Sprintf("/%s/rbac/roles", workspaceName)},
+		{"rbac/users", fmt.Sprintf("/%s/rbac/users", workspaceName)},
+	}
+
+	type entityCount struct {
+		label string
+		count int
+	}
+
+	var remaining []entityCount
+	for _, e := range entityTypes {
+		n := p.countWorkspaceEntities(e.path)
+		if n == -1 {
+			logger.Debugf("  [pre-delete check] could not query %s (endpoint unavailable or error)", e.label)
+			continue
+		}
+		if n > 0 {
+			remaining = append(remaining, entityCount{e.label, n})
+		}
+	}
+
+	if len(remaining) == 0 {
+		logger.Debugf("[pre-delete check] workspace %s: no remaining entities found", workspaceName)
+	} else {
+		logger.Debugf("[pre-delete check] workspace %s still has entities — workspace DELETE may return 400", workspaceName)
+		for _, e := range remaining {
+			logger.Debugf("  still present: %s (%d)", e.label, e.count)
+		}
+	}
 }
 
 // applyPlugins applies workspace plugins

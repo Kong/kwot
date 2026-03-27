@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.7] - 2026-03-27
+
+### Added
+
+- Auto-cleanup of group-role assignments and empty groups during workspace deletion
+  - When deleting a workspace, kwot now removes all group-role mappings for that workspace (Step 0)
+  - Groups that become fully empty after removal are automatically deleted
+  - Multi-workspace groups retain their role mappings for other workspaces
+- Per-workspace `groups-and-roles.yaml` support — place a `groups-and-roles.yaml` inside a workspace directory and it takes priority over the global file
+- Configuration File Reference section in README documenting all YAML schemas (`workspace.yaml`, `workspace-rbac-user.yaml`, `groups-and-roles.yaml`)
+- `IsDebugEnabled()` helper in logger to gate expensive debug-only API calls
+- Workspace deletion now cleans up additional Kong Enterprise entity types:
+  - Custom plugin schemas (`/custom-plugins`)
+  - Standalone DeGraphQL routes (`/degraphql_routes`)
+  - OIDC JWK sets (`/oic_jwks`)
+  - Dev Portal partials (`/partials`)
+
+### Fixed
+
+- `ProcessRoles` now validates that the workspace exists before proceeding, preventing silent success for nonexistent workspaces
+- `errors.Is(err, os.ErrNotExist)` used throughout group config loading to correctly unwrap wrapped errors from `fmt.Errorf("%w", ...)`
+- `countWorkspaceEntities` returns -1 on any pagination error to prevent acting on partial/unreliable counts
+- `debugLogRemainingEntities` gated behind `IsDebugEnabled()` to avoid unnecessary Kong API calls on non-verbose runs
+- Global `groups-and-roles.yaml` in all-mode now filters roles per workspace rather than skipping entire groups
+
 ## [1.0.6] - 2026-02-18
 
 ### Security

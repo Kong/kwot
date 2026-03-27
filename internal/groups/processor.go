@@ -1,6 +1,7 @@
 package groups
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -60,7 +61,7 @@ func (p *Processor) ProcessGroups(selectedWorkspace string) error {
 	logger.Debugf("Number of existing workspaces = %d", len(allWorkspaces))
 
 	// Load group configuration
-	groupConfig, err := p.loadGroupConfig()
+	groupConfig, err := p.loadGroupConfig(selectedWorkspace)
 	if err != nil {
 		return fmt.Errorf("failed to load group config: %w", err)
 	}
@@ -191,14 +192,112 @@ func (p *Processor) ProcessGroups(selectedWorkspace string) error {
 	return nil
 }
 
-// loadGroupConfig loads group configuration from YAML
+// loadGroupConfig loads group configuration from YAML.
+// Lookup precedence (workspace-local file takes priority over global):
+//   - For a specific workspace: <CONFIG_DIR>/<workspace>/groups-and-roles.yaml, then <CONFIG_DIR>/groups-and-roles.yaml
+//   - For "all": each workspace dir is checked for a local file; workspaces without one fall back to the global file
+//
+// Supports two YAML formats:
+// 1. Direct array: [- group_name: ..., - group_name: ...]
+// 2. Structured: role_info: {...}, config: [- group_name: ..., ...]
+func (p *Processor) loadGroupConfig(selectedWorkspace string) ([]models.GroupDetail, error) {
+	if selectedWorkspace != "all" {
+		return p.loadGroupConfigForWorkspace(selectedWorkspace)
+	}
+
+	// "all" mode: scan workspace subdirs, aggregate groups from local files;
+	// workspaces without a local file fall back to the global file.
+	entries, err := os.ReadDir(p.cfg.ConfigDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config directory: %w", err)
+	}
+
+	// Load global file once — ignore only "not found"; surface parse/IO errors (#5)
+	globalPath := filepath.Join(p.cfg.ConfigDir, groupConfigName)
+	globalGroups, err := p.parseGroupConfigFile(globalPath)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("failed to load global group config %s: %w", globalPath, err)
+	}
+
+	var allGroups []models.GroupDetail
+	workspacesWithLocalFile := make(map[string]bool)
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		wsName := entry.Name()
+		localPath := filepath.Join(p.cfg.ConfigDir, wsName, groupConfigName)
+		if _, statErr := os.Stat(localPath); statErr != nil {
+			if !errors.Is(statErr, os.ErrNotExist) {
+				return nil, fmt.Errorf("failed to stat local group config for workspace %s at %s: %w", wsName, localPath, statErr)
+			}
+			// No local file for this workspace; may fall back to global config.
+			continue
+		}
+		groups, err := p.parseGroupConfigFile(localPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load groups for workspace %s: %w", wsName, err)
+		}
+		allGroups = append(allGroups, groups...)
+		workspacesWithLocalFile[wsName] = true
+	}
+
+	// Include global entries for workspaces that don't have a local file.
+	// If a global group maps roles to multiple workspaces, keep only the roles
+	// for workspaces that do NOT have a local file — don't drop the whole group (#1).
+	for _, g := range globalGroups {
+		var filteredRoles []models.GroupRole
+		for _, role := range g.Roles {
+			if !workspacesWithLocalFile[role.Workspace] {
+				filteredRoles = append(filteredRoles, role)
+			}
+		}
+		if len(filteredRoles) == 0 {
+			continue // all roles covered by local files
+		}
+		gCopy := g
+		gCopy.Roles = filteredRoles
+		allGroups = append(allGroups, gCopy)
+	}
+
+	if len(allGroups) == 0 {
+		return nil, fmt.Errorf("no %s found in workspace directories or config root", groupConfigName)
+	}
+
+	return allGroups, nil
+}
+
+// loadGroupConfigForWorkspace loads group config for a single workspace,
+// preferring the workspace-local file over the global file.
+func (p *Processor) loadGroupConfigForWorkspace(workspace string) ([]models.GroupDetail, error) {
+	localPath := filepath.Join(p.cfg.ConfigDir, workspace, groupConfigName)
+	switch _, err := os.Stat(localPath); {
+	case err == nil:
+		logger.Debugf("Using workspace-local %s for workspace %s", groupConfigName, workspace)
+		return p.parseGroupConfigFile(localPath)
+	case !errors.Is(err, os.ErrNotExist):
+		return nil, fmt.Errorf("failed to stat workspace-local %s for workspace %s: %w", groupConfigName, workspace, err)
+	}
+
+	globalPath := filepath.Join(p.cfg.ConfigDir, groupConfigName)
+	switch _, err := os.Stat(globalPath); {
+	case err == nil:
+		logger.Debugf("Using global %s for workspace %s", groupConfigName, workspace)
+		return p.parseGroupConfigFile(globalPath)
+	case !errors.Is(err, os.ErrNotExist):
+		return nil, fmt.Errorf("failed to stat global %s for workspace %s: %w", groupConfigName, workspace, err)
+	}
+
+	return nil, fmt.Errorf("no %s found in %s/ or config root", groupConfigName, workspace)
+}
+
+// parseGroupConfigFile reads and parses a groups-and-roles YAML file.
 // Supports two formats:
 // 1. Direct array: [- group_name: ..., - group_name: ...]
 // 2. Structured: role_info: {...}, config: [- group_name: ..., ...]
-func (p *Processor) loadGroupConfig() ([]models.GroupDetail, error) {
-	configPath := filepath.Join(p.cfg.ConfigDir, groupConfigName)
-
-	data, err := os.ReadFile(configPath)
+func (p *Processor) parseGroupConfigFile(path string) ([]models.GroupDetail, error) {
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read group config file: %w", err)
 	}
@@ -206,7 +305,6 @@ func (p *Processor) loadGroupConfig() ([]models.GroupDetail, error) {
 	// Try format 2 first (structured with role_info and config)
 	var wrapper models.GroupConfigWrapper
 	if err := yaml.Unmarshal(data, &wrapper); err == nil && len(wrapper.Config) > 0 {
-		// Successfully parsed as structured format
 		return wrapper.Config, nil
 	}
 
@@ -245,7 +343,7 @@ func (p *Processor) GetAllGroups() ([]models.GroupResponse, error) {
 		allGroups = append(allGroups, response.Data...)
 
 		// Check if there are more pages
-		if response.Offset == "" || len(response.Data) < pageSize {
+		if len(response.Data) == 0 || response.Offset == "" || len(response.Data) < pageSize {
 			break
 		}
 
@@ -399,8 +497,8 @@ func (p *Processor) getRoleID(workspaceName, roleName string) (string, error) {
 }
 
 // LoadGroupConfig loads group configuration from file
-func (p *Processor) LoadGroupConfig() ([]models.GroupDetail, error) {
-	return p.loadGroupConfig()
+func (p *Processor) LoadGroupConfig(selectedWorkspace string) ([]models.GroupDetail, error) {
+	return p.loadGroupConfig(selectedWorkspace)
 }
 func (p *Processor) GetAllRolesForWorkspace(workspaceName string) ([]models.RoleResponse, error) {
 	var allRoles []models.RoleResponse

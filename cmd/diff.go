@@ -320,7 +320,7 @@ func compareRoleDrift(rolesProcessor *roles.Processor, wsProcessor *workspace.Pr
 // compareGroupDrift compares configured groups with Kong to detect orphaned groups
 func compareGroupDrift(groupsProcessor *groups.Processor) error {
 	// Load configured groups
-	configuredGroups, err := groupsProcessor.LoadGroupConfig()
+	configuredGroups, err := groupsProcessor.LoadGroupConfig("all")
 	if err != nil {
 		return fmt.Errorf("failed to load group config: %w", err)
 	}

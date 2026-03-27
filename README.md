@@ -55,6 +55,29 @@ When deleting workspaces, kwot automatically cleans up all workspace-scoped chil
 | **Plugins, Consumer Groups, ACLs** | ✅ Auto-deleted with workspace |
 | **Certificates, SNIs, Upstreams** | ✅ Auto-deleted with workspace |
 | **Credentials & Vaults** (basic-auth, key-auth, hmac-auth, jwt, oauth2, mtls-auth) | ✅ Auto-deleted with workspace |
+| **Keys & Key Sets** (Kong Enterprise 3.1+) | ✅ Auto-deleted with workspace |
+| **Custom Plugin schemas** | ✅ Auto-deleted with workspace |
+| **DeGraphQL routes** (standalone + service-scoped) | ✅ Auto-deleted with workspace |
+| **OIDC JWK Sets** (`oic_jwks`) | ✅ Auto-deleted with workspace |
+| **Dev Portal Partials** | ✅ Auto-deleted with workspace |
+| **Group-role mappings & empty groups** | ✅ Auto-cleaned with workspace (see below) |
+
+#### Group cleanup during workspace deletion
+
+Kong groups are **global** — a single group can hold role mappings across multiple workspaces. When you delete a workspace, kwot handles group cleanup automatically as Step 0 of the deletion sequence:
+
+1. **Role mappings for this workspace are removed** from every group that references it.
+2. **Groups that become empty** (all their role mappings belonged to this workspace) are **deleted automatically**.
+3. **Multi-workspace groups** that still have role mappings in other workspaces are **left untouched** — only the mappings for the deleted workspace are removed.
+
+Example log output during `delete workspaces -n teamA --force`:
+```
+Step 0: Removing group-role assignments for workspace teamA
+Removed role assignment from group 'teamA-admin-group' (workspace: teamA)
+Group 'teamA-admin-group' has no remaining role assignments after workspace teamA removal — deleting group
+Removed role assignment from group 'platform-admins' (workspace: teamA)
+Group 'platform-admins' retains 2 role assignment(s) in other workspace(s) — group preserved
+```
 
 **Note:** For comprehensive API configuration management (services, routes, plugins at scale), use [decK](https://github.com/Kong/deck). kwot handles workspace-level plugin declarations; decK handles API-layer resource management.
 
@@ -143,6 +166,194 @@ CONFIG_DIR=./config/
 ```
 
 See [CHEATSHEET.md](CHEATSHEET.md#environment-configuration) for all environment variables.
+
+## Configuration File Reference
+
+kwot primarily works with three core types of YAML files in your `CONFIG_DIR`, plus additional supporting YAML files (for example, a `root-workspace.yaml` and any external permission-set YAML files referenced from `workspace.yaml`). This section documents every field of these core config files so you know exactly what to write.
+
+---
+
+### `workspace.yaml` — Workspace, Roles, and Plugins
+
+One file per workspace directory. Defines the workspace settings, the RBAC roles that exist inside it, and any workspace-level plugins to apply.
+
+```yaml
+# workspace config settings
+config:
+  portal: false           # true | false — enable Dev Portal for this workspace
+
+# RBAC roles to create inside this workspace
+rbac:
+  - role: readonlyrole    # role name (string, must be unique within the workspace)
+    permissions:
+      - endpoint: "*"     # Kong endpoint pattern — "*" means all endpoints
+        negative: false   # false = ALLOW, true = DENY
+        actions: "read"   # comma-separated: read, create, update, delete
+
+  - role: admin
+    permissions:
+      - endpoint: "*"
+        negative: false
+        actions: "create,update,read,delete"
+      - endpoint: "/rbac/*"   # deny RBAC management to prevent privilege escalation
+        negative: true
+        actions: "create,update,read,delete"
+
+# Workspace-level plugins (optional)
+plugins:
+  - name: "file-log"          # Kong plugin name
+    config:
+      path: /dev/stdout       # plugin-specific config keys
+      reopen: false
+
+  - name: "rate-limiting-advanced"
+    config:
+      limit: [10, 20]
+      window_size: [60, 120]
+      strategy: redis
+      redis:
+        host: redis.svc.cluster.local
+        port: 6379
+      sync_rate: 1
+```
+
+**Notes:**
+- `permissions` can reference a file path instead of an inline array (for shared permission sets).
+- `plugins` is optional — omit the key entirely if no plugins are needed.
+- Roles defined here are what you reference in `groups-and-roles.yaml`.
+
+---
+
+### `workspace-rbac-user.yaml` — Workspace RBAC Users
+
+One file per workspace directory. Defines workspace-scoped RBAC users and the roles they are assigned.
+
+```yaml
+- name: workspace-admin-user   # RBAC username (string)
+  roles:
+    - admin                    # role name — must exist in this workspace's rbac: block
+
+- name: readonly-svc-account
+  roles:
+    - readonlyrole
+```
+
+**Notes:**
+- Each entry creates one RBAC user and assigns it the listed roles within the workspace.
+- Roles must already exist (kwot applies roles before users).
+- This file is **optional** — omit it if you don't need workspace-scoped RBAC users.
+- Feature-flagged: requires `FEATURE_CREATE_RBAC_USERS=true` to take effect.
+
+---
+
+### `groups-and-roles.yaml` — Group-to-Role Mappings
+
+Maps IdP groups (LDAP/OIDC) to Kong RBAC roles across workspaces. Supports two formats.
+
+**Format 1 — Direct array (recommended for simple setups):**
+
+```yaml
+- group_name: platform-admins        # IdP group name (string)
+  group_comment: "Platform admin team"  # optional description
+  roles:
+    - workspace: demo1               # workspace name
+      role: admin                    # role name — must exist in that workspace
+    - workspace: demo2
+      role: admin
+
+- group_name: platform-readonly
+  group_comment: "Read-only access across all workspaces"
+  roles:
+    - workspace: demo1
+      role: readonlyrole
+    - workspace: demo2
+      role: readonlyrole
+```
+
+**Format 2 — Structured with YAML anchors (for DRY role name reuse):**
+
+```yaml
+# Define role name aliases once, reuse with YAML anchors
+role_info:
+  wk_admin: &wk_admin admin
+  readonly:  &readonly readonlyrole
+
+# The actual group definitions — same schema as Format 1
+config:
+  - group_name: platform-admins
+    group_comment: "Platform admin team"
+    roles:
+      - workspace: demo1
+        role: *wk_admin          # expands to "admin"
+      - workspace: demo2
+        role: *wk_admin
+
+  - group_name: platform-readonly
+    roles:
+      - workspace: demo1
+        role: *readonly          # expands to "readonlyrole"
+```
+
+**Notes:**
+- Both formats produce identical results — choose whichever suits your team.
+- Different workspace files can use different formats; they don't need to match.
+- `group_name` must match the exact IdP group name configured in Kong.
+- `group_comment` is optional.
+- A single group can map to roles in multiple workspaces (multiple entries under `roles:`).
+
+---
+
+### File Layout Summary
+
+```
+CONFIG_DIR/
+  groups-and-roles.yaml          # optional — global fallback for all workspaces
+  <workspace>/
+    workspace.yaml               # required — workspace config, roles, plugins
+    workspace-rbac-user.yaml     # optional — workspace RBAC users
+    groups-and-roles.yaml        # optional — per-workspace groups (overrides global)
+```
+
+Apply order: **workspaces → roles → RBAC users → groups**. Each step depends on the previous one existing in Kong.
+
+---
+
+## Group Configuration Layout
+
+`groups-and-roles.yaml` can live either at the config root (global) or inside a workspace subdirectory (per-workspace). Per-workspace takes priority.
+
+**Option A — Global file (single file for all workspaces):**
+```
+config/
+  groups-and-roles.yaml   # all workspaces' groups defined here
+  teamA/
+  teamB/
+```
+
+**Option B — Per-workspace files (one file per workspace, no global):**
+```
+config/
+  teamA/
+    groups-and-roles.yaml   # teamA groups only
+    workspace.yaml
+  teamB/
+    groups-and-roles.yaml   # teamB groups only
+    workspace.yaml
+```
+
+**Option C — Mixed (per-workspace overrides, global as fallback):**
+```
+config/
+  groups-and-roles.yaml     # fallback for workspaces without a local file
+  teamA/
+    groups-and-roles.yaml   # teamA uses this, global is ignored for teamA
+  teamB/                    # teamB falls back to global
+    workspace.yaml
+```
+
+Both YAML formats are supported in any location:
+- **Direct array:** `- group_name: ...`
+- **Structured (with `role_info` anchors):** `role_info: {...}` + `config: [...]`
 
 ## Performance Tuning: Concurrency
 

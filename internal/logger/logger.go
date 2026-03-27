@@ -40,6 +40,11 @@ func SetLevel(level LogLevel) {
 	currentLevel.Store(int32(level))
 }
 
+// IsDebugEnabled reports whether debug logging is active.
+func IsDebugEnabled() bool {
+	return getLogLevel() <= DebugLevel
+}
+
 // SetVerbose enables debug logging
 func SetVerbose(verbose bool) {
 	if verbose {
