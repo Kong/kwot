@@ -41,11 +41,24 @@ func (p *Processor) ProcessRoles(selectedWorkspace, specificRole string) error {
 		return fmt.Errorf("failed to get workspace directories: %w", err)
 	}
 
+	// Validate that selected workspace exists in configuration
+	if selectedWorkspace != "all" {
+		found := false
+		for _, dir := range dirs {
+			if selectedWorkspace == dir {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("workspace '%s' not found in configuration", selectedWorkspace)
+		}
+	}
+
 	// Filter directories based on selection
 	var targetDirs []string
 	for _, dir := range dirs {
 		if selectedWorkspace != "all" && selectedWorkspace != dir {
-			logger.Warnf("Skipping workspace %s", dir)
 			continue
 		}
 		targetDirs = append(targetDirs, dir)
