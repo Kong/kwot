@@ -755,8 +755,10 @@ func (p *Processor) DeleteWorkspace(workspaceName string) error {
 	logger.Warnf("Remember to remove references to workspace %s from groups-and-roles.yaml", workspaceName)
 
 	// Check for any remaining entities before attempting workspace deletion.
-	// Output is only visible with --verbose but is invaluable for diagnosing 400 errors.
-	p.debugLogRemainingEntities(workspaceName)
+	// Gated behind debug level to avoid unnecessary API calls on every deletion (#3).
+	if logger.IsDebugEnabled() {
+		p.debugLogRemainingEntities(workspaceName)
+	}
 
 	// Finally, delete the workspace itself using ID
 	path := fmt.Sprintf("/workspaces/%s", workspaceID)
@@ -2011,10 +2013,7 @@ func (p *Processor) countWorkspaceEntities(entityPath string) int {
 		}
 
 		if err := p.client.GetJSON(entityPath, params, &result); err != nil {
-			if total == 0 {
-				return -1 // endpoint unavailable or error on first page
-			}
-			break // partial count — stop here
+			return -1 // endpoint unavailable or paging error — count unreliable
 		}
 
 		total += len(result.Data)

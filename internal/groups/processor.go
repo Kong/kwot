@@ -1,6 +1,7 @@
 package groups
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -211,8 +212,12 @@ func (p *Processor) loadGroupConfig(selectedWorkspace string) ([]models.GroupDet
 		return nil, fmt.Errorf("failed to read config directory: %w", err)
 	}
 
-	// Load global file once (may not exist)
-	globalGroups, _ := p.parseGroupConfigFile(filepath.Join(p.cfg.ConfigDir, groupConfigName))
+	// Load global file once — ignore only "not found"; surface parse/IO errors (#5)
+	globalPath := filepath.Join(p.cfg.ConfigDir, groupConfigName)
+	globalGroups, err := p.parseGroupConfigFile(globalPath)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("failed to load global group config %s: %w", globalPath, err)
+	}
 
 	var allGroups []models.GroupDetail
 	workspacesWithLocalFile := make(map[string]bool)
@@ -233,18 +238,22 @@ func (p *Processor) loadGroupConfig(selectedWorkspace string) ([]models.GroupDet
 		}
 	}
 
-	// Include global entries for workspaces that don't have a local file
+	// Include global entries for workspaces that don't have a local file.
+	// If a global group maps roles to multiple workspaces, keep only the roles
+	// for workspaces that do NOT have a local file — don't drop the whole group (#1).
 	for _, g := range globalGroups {
-		hasLocalFile := false
+		var filteredRoles []models.GroupRole
 		for _, role := range g.Roles {
-			if workspacesWithLocalFile[role.Workspace] {
-				hasLocalFile = true
-				break
+			if !workspacesWithLocalFile[role.Workspace] {
+				filteredRoles = append(filteredRoles, role)
 			}
 		}
-		if !hasLocalFile {
-			allGroups = append(allGroups, g)
+		if len(filteredRoles) == 0 {
+			continue // all roles covered by local files
 		}
+		gCopy := g
+		gCopy.Roles = filteredRoles
+		allGroups = append(allGroups, gCopy)
 	}
 
 	if len(allGroups) == 0 {
@@ -258,15 +267,21 @@ func (p *Processor) loadGroupConfig(selectedWorkspace string) ([]models.GroupDet
 // preferring the workspace-local file over the global file.
 func (p *Processor) loadGroupConfigForWorkspace(workspace string) ([]models.GroupDetail, error) {
 	localPath := filepath.Join(p.cfg.ConfigDir, workspace, groupConfigName)
-	if _, err := os.Stat(localPath); err == nil {
+	switch _, err := os.Stat(localPath); {
+	case err == nil:
 		logger.Debugf("Using workspace-local %s for workspace %s", groupConfigName, workspace)
 		return p.parseGroupConfigFile(localPath)
+	case !errors.Is(err, os.ErrNotExist):
+		return nil, fmt.Errorf("failed to stat workspace-local %s for workspace %s: %w", groupConfigName, workspace, err)
 	}
 
 	globalPath := filepath.Join(p.cfg.ConfigDir, groupConfigName)
-	if _, err := os.Stat(globalPath); err == nil {
+	switch _, err := os.Stat(globalPath); {
+	case err == nil:
 		logger.Debugf("Using global %s for workspace %s", groupConfigName, workspace)
 		return p.parseGroupConfigFile(globalPath)
+	case !errors.Is(err, os.ErrNotExist):
+		return nil, fmt.Errorf("failed to stat global %s for workspace %s: %w", groupConfigName, workspace, err)
 	}
 
 	return nil, fmt.Errorf("no %s found in %s/ or config root", groupConfigName, workspace)

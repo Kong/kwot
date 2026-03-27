@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Kong/kwot/internal/config"
+	"github.com/Kong/kwot/internal/models"
 )
 
 // newTestProcessor creates a Processor using a temp dir as ConfigDir.
@@ -210,6 +211,61 @@ func TestLoadGroupConfig_All_MixedLocalAndGlobal(t *testing.T) {
 				t.Errorf("unexpected demo1 group from global file: %s", g.GroupName)
 			}
 		}
+	}
+}
+
+func TestLoadGroupConfig_All_MultiWorkspaceGroupInGlobal(t *testing.T) {
+	// Copilot review #1: a global group whose roles span multiple workspaces should
+	// not be dropped entirely when one of those workspaces has a local file.
+	// Only the roles for workspaces WITH a local file should be filtered out.
+	dir := t.TempDir()
+	p := newTestProcessor(t, dir)
+
+	// Global file has one group that maps roles to BOTH demo1 and demo4.
+	const multiWorkspaceGlobal = `
+- group_name: cross-workspace-group
+  group_comment: group with roles in demo1 and demo4
+  roles:
+    - workspace: demo1
+      role: admin
+    - workspace: demo4
+      role: readonlyrole
+`
+	writeFile(t, filepath.Join(dir, groupConfigName), multiWorkspaceGlobal)
+
+	// demo1 has a local file — its roles in the global group should be dropped.
+	// demo4 has no local file — its roles in the global group should be kept.
+	writeFile(t, filepath.Join(dir, "demo1", groupConfigName), directArrayYAML) // 2 groups for demo1
+	if err := os.MkdirAll(filepath.Join(dir, "demo4"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	groups, err := p.loadGroupConfig("all")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// 2 from demo1 local + 1 cross-workspace-group (demo4 role only, demo1 role stripped)
+	if len(groups) != 3 {
+		t.Fatalf("expected 3 groups, got %d", len(groups))
+	}
+
+	// Find cross-workspace-group and verify only the demo4 role survived
+	var crossGroup *models.GroupDetail
+	for i := range groups {
+		if groups[i].GroupName == "cross-workspace-group" {
+			crossGroup = &groups[i]
+			break
+		}
+	}
+	if crossGroup == nil {
+		t.Fatal("cross-workspace-group should be present (demo4 role not covered by local file)")
+	}
+	if len(crossGroup.Roles) != 1 {
+		t.Fatalf("expected 1 role (demo4 only), got %d: %+v", len(crossGroup.Roles), crossGroup.Roles)
+	}
+	if crossGroup.Roles[0].Workspace != "demo4" {
+		t.Errorf("expected remaining role for demo4, got workspace=%s", crossGroup.Roles[0].Workspace)
 	}
 }
 
