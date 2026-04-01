@@ -11,7 +11,7 @@ Automates Kong Gateway workspace, RBAC, and group setup from YAML. One binary, z
 | Requirement | Minimum version |
 |-------------|----------------|
 | Kong Gateway Enterprise | **3.4.0** |
-| Go (to build from source) | **1.22** |
+| Go (to build from source) | **1.26** |
 
 Kong Gateway 3.4.0 introduced the `cascade=true` flag on workspace deletion, which kwot uses to atomically remove a workspace and all its child resources (including Dev Portal files, RBAC roles, plugins, and more) in a single API call. Versions older than 3.4.0 are not supported.
 

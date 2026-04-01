@@ -12,7 +12,8 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- `DeleteWorkspace` simplified from a 22-step manual entity cleanup sequence to two steps: group-role assignment cleanup (Step 0, unchanged) followed by a single cascade API call
+- `DeleteWorkspace` simplified from a 22-step manual entity cleanup sequence to two steps: cascade workspace delete followed by group-role assignment cleanup
+- Group-role assignment cleanup now runs **after** the cascade delete succeeds, preventing partial state where the workspace still exists but its group mappings have already been stripped
 - Removed ~1,400 lines of individual entity deletion helpers (`deleteAllWorkspace*`, `deleteWorkspaceRoles`, `deleteWorkspaceUsers`, `countWorkspaceEntities`, `debugLogRemainingEntities`) — all superseded by cascade
 
 ### Added

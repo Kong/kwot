@@ -616,29 +616,36 @@ func (p *Processor) DeleteWorkspace(workspaceName string) error {
 		return nil
 	}
 
-	// Step 0: Remove group-role assignments that reference this workspace.
-	// Groups are global in Kong — a group can hold roles across many workspaces.
-	// We remove only the role mappings that belong to this workspace.
-	// If a group ends up with no remaining role assignments it is deleted automatically.
-	// Groups that still have roles in other workspaces are left untouched.
-	logger.Infof("Step 0: Removing group-role assignments for workspace %s", workspaceName)
-	if err := p.removeGroupRoleAssignmentsForWorkspace(workspaceName, workspaceID); err != nil {
-		logger.Errorf("Failed to remove group-role assignments: %v", err)
-		// Don't fail the deletion, just log and continue
-	}
-
 	// Delete the workspace using cascade=true (Kong Gateway 3.4.0+).
 	// This removes the workspace and all its child resources — services, routes, plugins,
 	// RBAC roles/users, Dev Portal files, etc. — in a single atomic API call.
+	// Cascade delete is performed first so that group-role mappings are only removed
+	// after the workspace is confirmed deleted; this prevents partial state where the
+	// workspace still exists but its group mappings have already been stripped.
 	workspacePath := fmt.Sprintf("/workspaces/%s", workspaceID)
 	cascadeParams := url.Values{}
 	cascadeParams.Set("cascade", "true")
 
 	resp, err := p.client.DELETEWithParams(workspacePath, cascadeParams)
 	if err != nil {
-		return fmt.Errorf("failed to delete workspace %s: %w", workspaceName, err)
+		return fmt.Errorf(
+			"failed to delete workspace %s (path: %s): %w -- "+
+				"cascade=true requires Kong Gateway 3.4.0+; verify your Kong version and that the workspace exists",
+			workspaceName, workspacePath, err,
+		)
 	}
 	defer func() { _ = resp.Body.Close() }()
+
+	// Remove group-role assignments only after the workspace is successfully deleted.
+	// Groups are global in Kong — a group can hold roles across many workspaces.
+	// We remove only the role mappings that belonged to this workspace.
+	// If a group ends up with no remaining role assignments it is deleted automatically.
+	// Groups that still have roles in other workspaces are left untouched.
+	logger.Infof("Removing group-role assignments for deleted workspace %s", workspaceName)
+	if err := p.removeGroupRoleAssignmentsForWorkspace(workspaceName, workspaceID); err != nil {
+		logger.Errorf("Failed to remove group-role assignments: %v", err)
+		// Workspace is already deleted — log and continue rather than returning an error.
+	}
 
 	logger.Infof("Successfully deleted workspace: %s", workspaceName)
 	return nil
