@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.8] - 2026-04-01
+
+### Fixed
+
+- Workspace deletion now succeeds when the workspace has the Dev Portal enabled
+  - Root cause: the `/partials` endpoint used in previous versions does not exist in Kong 3.4+; Dev Portal files live under `/files` and were never cleaned up, causing a `400 Bad Request` on the final workspace DELETE
+  - Fix: workspace deletion now uses `DELETE /workspaces/{id}?cascade=true` (Kong 3.4.0+) which atomically removes the workspace and all its child resources — including Dev Portal files — in a single API call
+
+### Changed
+
+- `DeleteWorkspace` simplified from a 22-step manual entity cleanup sequence to two steps: group-role assignment cleanup (Step 0, unchanged) followed by a single cascade API call
+- Removed ~1,400 lines of individual entity deletion helpers (`deleteAllWorkspace*`, `deleteWorkspaceRoles`, `deleteWorkspaceUsers`, `countWorkspaceEntities`, `debugLogRemainingEntities`) — all superseded by cascade
+
+### Added
+
+- Minimum Kong Gateway Enterprise version documented as **3.4.0** in README (required for `cascade=true` workspace deletion)
+- README: new `## Requirements` section with Kong and Go version requirements
+- README: new `### Workspace deletion and Dev Portal` section explaining cascade behavior
+
 ## [1.0.7] - 2026-03-27
 
 ### Added
