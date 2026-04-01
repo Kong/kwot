@@ -7,7 +7,7 @@
 # ============================================================================
 
 BINARY_NAME=kwot
-VERSION?=1.0.7
+VERSION?=1.0.8
 BUILD_DIR=bin
 DOCS_DIR=docs
 GOCMD=go
