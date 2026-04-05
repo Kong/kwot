@@ -135,7 +135,13 @@ plugins:
 - name: workspace-admin-user
   roles:
     - admin
+- name: ci-pipeline-user
+  user_token: my-static-token   # optional — if omitted, a random UUID is generated
+  roles:
+    - workspace-admin
 ```
+
+The `user_token` field is **optional**. When set, kwot will use that value as the RBAC token for the user. When omitted, a random UUID is generated at creation time and not stored. Use a static token when you need a predictable, pre-shared secret (e.g. for CI pipelines or service accounts).
 
 ### `groups-and-roles.yaml`
 

@@ -3,7 +3,7 @@ package models
 // RBACUser represents a workspace-scoped RBAC user
 type RBACUser struct {
 	Name      string   `yaml:"name" json:"name"`
-	UserToken string   `json:"user_token,omitempty"`
+	UserToken string   `yaml:"user_token,omitempty" json:"user_token,omitempty"`
 	Roles     []string `yaml:"roles" json:"roles"`
 }
 

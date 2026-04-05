@@ -128,6 +128,58 @@ func TestValidateRoleName(t *testing.T) {
 	}
 }
 
+// TestValidateRBACUserConfig tests RBAC user configuration validation
+func TestValidateRBACUserConfig(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   models.RBACUser
+		wantErr bool
+	}{
+		{
+			name: "valid user no token",
+			input: models.RBACUser{
+				Name:  "my-user",
+				Roles: []string{"admin"},
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid user with token",
+			input: models.RBACUser{
+				Name:      "my-user",
+				UserToken: "my-static-token",
+				Roles:     []string{"admin"},
+			},
+			wantErr: false,
+		},
+		{
+			name: "missing name",
+			input: models.RBACUser{
+				Name:  "",
+				Roles: []string{"admin"},
+			},
+			wantErr: true,
+		},
+		{
+			name: "no roles",
+			input: models.RBACUser{
+				Name:  "my-user",
+				Roles: []string{},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateRBACUserConfig(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateRBACUserConfig() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 // TestValidateGroupConfig tests group configuration validation
 func TestValidateGroupConfig(t *testing.T) {
 	tests := []struct {

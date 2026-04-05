@@ -525,9 +525,13 @@ func (p *Processor) getCurrentRBACUsers(workspaceName string) ([]string, error) 
 // createOrUpdateRBACUser creates or updates an RBAC user
 // Matches Node.js approach: just POST and handle 409 conflict gracefully
 func (p *Processor) createOrUpdateRBACUser(workspaceName string, user models.RBACUser) error {
-	// Create user with UUID token
-	// Token is randomly generated (UUID) and NOT stored in config or logs
-	userToken := uuid.New().String()
+	// Use user-specified token if provided, otherwise generate a random UUID
+	userToken := user.UserToken
+	if userToken == "" {
+		userToken = uuid.New().String()
+	} else {
+		logger.Debugf("Using configured user_token for RBAC user '%s' in workspace '%s'", user.Name, workspaceName)
+	}
 
 	userData := map[string]string{
 		"name":       user.Name,
@@ -838,7 +842,6 @@ func (p *Processor) getWorkspaceID(workspaceName string) (string, error) {
 	return "", fmt.Errorf("workspace %s not found", workspaceName)
 }
 
-
 // GetWorkspaceDirs returns a list of workspace directories
 func (p *Processor) GetWorkspaceDirs() ([]string, error) {
 	entries, err := os.ReadDir(p.cfg.ConfigDir)
@@ -1007,7 +1010,6 @@ func (p *Processor) deletePlugin(workspaceName, pluginName string) error {
 	logger.Infof("Plugin %s deleted from workspace %s", pluginName, workspaceName)
 	return nil
 }
-
 
 // applyPlugins applies workspace plugins
 func (p *Processor) applyPlugins(workspaceName string, plugins []models.Plugin) error {
