@@ -523,11 +523,16 @@ func (p *Processor) getCurrentRBACUsers(workspaceName string) ([]string, error) 
 }
 
 // createOrUpdateRBACUser creates or updates an RBAC user
-// Matches Node.js approach: just POST and handle 409 conflict gracefully
+// Matches Node.js approach: just POST and handle 409 conflict gracefully.
+// NOTE: user_token is only applied on initial creation. If the user already
+// exists (409), the configured token is NOT reconciled — Kong does not expose
+// a way to retrieve the existing token for comparison, so we leave it unchanged.
 func (p *Processor) createOrUpdateRBACUser(workspaceName string, user models.RBACUser) error {
-	// Create user with UUID token
-	// Token is randomly generated (UUID) and NOT stored in config or logs
-	userToken := uuid.New().String()
+	// Use user-specified token if provided, otherwise generate a random UUID
+	userToken := user.UserToken
+	if userToken == "" {
+		userToken = uuid.New().String()
+	}
 
 	userData := map[string]string{
 		"name":       user.Name,
@@ -541,12 +546,19 @@ func (p *Processor) createOrUpdateRBACUser(workspaceName string, user models.RBA
 		if strings.Contains(errStr, "409") || strings.Contains(errStr, "conflict") ||
 			strings.Contains(errStr, "UNIQUE violation") || strings.Contains(errStr, "already exists") ||
 			strings.Contains(errStr, "Duplicate resource") {
-			logger.Warnf("RBAC user '%s' already exists in workspace '%s'", user.Name, workspaceName)
+			if user.UserToken != "" {
+				logger.Warnf("RBAC user '%s' already exists in workspace '%s' — configured user_token was not applied", user.Name, workspaceName)
+			} else {
+				logger.Warnf("RBAC user '%s' already exists in workspace '%s'", user.Name, workspaceName)
+			}
 			return nil
 		}
 		return fmt.Errorf("failed to create RBAC user: %w", err)
 	}
 
+	if user.UserToken != "" {
+		logger.Debugf("RBAC user '%s' created in workspace '%s' with configured user_token", user.Name, workspaceName)
+	}
 	logger.Infof("RBAC user '%s' created in workspace '%s'", user.Name, workspaceName)
 
 	// Verify RBAC user is available before assigning roles (with configurable retries)
@@ -838,7 +850,6 @@ func (p *Processor) getWorkspaceID(workspaceName string) (string, error) {
 	return "", fmt.Errorf("workspace %s not found", workspaceName)
 }
 
-
 // GetWorkspaceDirs returns a list of workspace directories
 func (p *Processor) GetWorkspaceDirs() ([]string, error) {
 	entries, err := os.ReadDir(p.cfg.ConfigDir)
@@ -1007,7 +1018,6 @@ func (p *Processor) deletePlugin(workspaceName, pluginName string) error {
 	logger.Infof("Plugin %s deleted from workspace %s", pluginName, workspaceName)
 	return nil
 }
-
 
 // applyPlugins applies workspace plugins
 func (p *Processor) applyPlugins(workspaceName string, plugins []models.Plugin) error {
