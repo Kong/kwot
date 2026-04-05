@@ -9,7 +9,8 @@ All notable changes to this project will be documented in this file.
 - Optional `user_token` field in `workspace-rbac-user.yaml` — when set, kwot uses the provided value as the RBAC token for that user instead of generating a random UUID
   - Use case: CI pipelines, service accounts, or any scenario requiring a predictable pre-shared RBAC token
   - When omitted, existing behavior is preserved (a random UUID is generated at creation time and never stored)
-  - A debug log line confirms when a configured token is being used
+  - A debug log line confirms the configured token was used after a successful create
+  - **Note:** `user_token` is only applied on initial creation. If the user already exists (409), the token is **not** reconciled — the warning log will say `configured user_token was not applied` in that case; delete and recreate the user to change its token
 
 ### Changed
 
