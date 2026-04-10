@@ -1,6 +1,6 @@
 version: 2
 updates:
-  # Go dependencies - report only, no automatic PRs
+  # Go dependencies - open reviewable PRs for available updates
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
@@ -10,7 +10,7 @@ updates:
     open-pull-requests-limit: 5
     labels: ["dependencies", "go"]
     commit-message:
-      prefix: "deps:"
+      prefix: "chore(deps)"
     allow:
       - dependency-type: "direct"
       - dependency-type: "indirect"
