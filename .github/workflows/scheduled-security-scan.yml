@@ -19,7 +19,7 @@ jobs:
 
       - uses: actions/setup-go@v4
         with:
-          go-version: "1.26"
+          go-version-file: go.mod
           cache: true
 
       - name: Run govulncheck

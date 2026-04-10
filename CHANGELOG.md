@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.10] - 2026-04-10
+
+### Security
+
+- Update Go toolchain from 1.26.1 to 1.26.2 to fix 4 Go standard library vulnerabilities:
+  - **GO-2026-4947**: Unexpected work during chain building in `crypto/x509`
+  - **GO-2026-4946**: Inefficient policy validation in `crypto/x509`
+  - **GO-2026-4870**: Unauthenticated TLS 1.3 KeyUpdate record causes DoS in `crypto/tls`
+  - **GO-2026-4866**: Case-sensitive `excludedSubtrees` name constraints auth bypass in `crypto/x509`
+
+### Changed
+
+- `go.mod` now declares `go 1.26` and pins `toolchain go1.26.2` for reproducible patch-level builds
+- All CI workflows (`ci.yml`, `release.yml`, `scheduled-security-scan.yml`) now use `go-version-file: go.mod` instead of a hardcoded version string — future Go upgrades only require a single change in `go.mod`
+- `Dockerfile` builder stage updated from `golang:1.24.12-alpine` to `golang:1.26.2-alpine`
+- `dependabot.yml` `open-pull-requests-limit` raised from 0 to 5 so Go module security patches are proposed automatically as PRs
+
 ## [1.0.9] - 2026-04-05
 
 ### Added
