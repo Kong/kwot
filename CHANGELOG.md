@@ -14,7 +14,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- `go.mod` now declares `go 1.26` and pins `toolchain go1.26.2` for reproducible patch-level builds
+- `go.mod` continues to declare `go 1.26` and now pins `toolchain go1.26.2` for reproducible patch-level builds
 - All CI workflows (`ci.yml`, `release.yml`, `scheduled-security-scan.yml`) now use `go-version-file: go.mod` instead of a hardcoded version string — future Go upgrades only require a single change in `go.mod`
 - `Dockerfile` builder stage updated from `golang:1.24.12-alpine` to `golang:1.26.2-alpine`
 - `dependabot.yml` remains in report-only mode (`open-pull-requests-limit: 0`) so dependency issues are surfaced without opening automated PRs
