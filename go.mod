@@ -2,6 +2,8 @@ module github.com/Kong/kwot
 
 go 1.26.2
 
+toolchain go1.26.2
+
 require (
 	github.com/joho/godotenv v1.5.1
 	github.com/spf13/cobra v1.8.0
