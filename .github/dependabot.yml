@@ -7,10 +7,10 @@ updates:
       interval: "weekly"
       day: "monday"
       time: "03:00"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     labels: ["dependencies", "go"]
     commit-message:
-      prefix: "deps:"
+      prefix: "chore(deps):"
     allow:
       - dependency-type: "direct"
       - dependency-type: "indirect"
