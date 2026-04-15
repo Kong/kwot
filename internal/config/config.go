@@ -89,7 +89,7 @@ func LoadConfig(configFile string) error {
 		cfg.MaxRetryAttempts = 5
 	}
 
-	// Ensure HTTPRequestTimeout is positive; 0 disables Go's HTTP client timeout entirely
+	// Ensure HTTPRequestTimeout is positive; non-positive values fall back to the default
 	if cfg.HTTPRequestTimeout <= 0 {
 		cfg.HTTPRequestTimeout = 30
 	}

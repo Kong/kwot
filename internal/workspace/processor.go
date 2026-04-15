@@ -1,7 +1,10 @@
 package workspace
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -640,10 +643,16 @@ func (p *Processor) DeleteWorkspace(workspaceName string) error {
 
 	resp, err := p.client.DELETEWithParams(workspacePath, cascadeParams)
 	if err != nil {
-		errStr := err.Error()
-		// A timeout means Kong is still processing the cascade delete (large workspace).
-		// Increase KONG_REQUEST_TIMEOUT in .env to give Kong more time.
-		if strings.Contains(errStr, "context deadline exceeded") || strings.Contains(errStr, "timeout") {
+		// Use structured checks for timeout rather than string matching, which is
+		// fragile across Go versions and transport implementations.
+		isTimeout := errors.Is(err, context.DeadlineExceeded)
+		if !isTimeout {
+			var netErr net.Error
+			if errors.As(err, &netErr) {
+				isTimeout = netErr.Timeout()
+			}
+		}
+		if isTimeout {
 			return fmt.Errorf(
 				"failed to delete workspace %s (path: %s): %w -- "+
 					"the request timed out; the workspace may have too many entities for the current KONG_REQUEST_TIMEOUT (%d s). "+
@@ -1130,23 +1139,21 @@ func (p *Processor) applyPlugin(workspaceName string, plugin models.Plugin) erro
 		// which would only add delay and mask the real root cause.
 		isWorkspaceNotReady := strings.Contains(errStr, "not found") &&
 			strings.Contains(strings.ToLower(errStr), "workspace")
-		if isWorkspaceNotReady {
-			lastErr = err
-			if attempt < maxAttempts {
-				backoff := time.Duration(attempt*200) * time.Millisecond
-				logger.Debugf("Workspace %s not ready on Kong node for plugin %s (attempt %d/%d), retrying in %v", workspaceName, plugin.Name, attempt, maxAttempts, backoff)
-				time.Sleep(backoff)
-				continue
-			}
-			logger.Errorf("Failed to create plugin %s in workspace %s after %d attempts: %v", plugin.Name, workspaceName, maxAttempts, lastErr)
-			return fmt.Errorf("failed to create plugin %s after %d attempts: %w", plugin.Name, maxAttempts, lastErr)
+		if !isWorkspaceNotReady {
+			// Permanent error — fail immediately without retrying.
+			logger.Errorf("Failed to create plugin %s in workspace %s: %v", plugin.Name, workspaceName, err)
+			return fmt.Errorf("failed to create plugin %s: %w", plugin.Name, err)
 		}
 
-		// Any other error — fail immediately.
-		logger.Errorf("Failed to create plugin %s in workspace %s: %v", plugin.Name, workspaceName, err)
-		return fmt.Errorf("failed to create plugin %s: %w", plugin.Name, err)
+		lastErr = err
+		if attempt < maxAttempts {
+			backoff := time.Duration(attempt*200) * time.Millisecond
+			logger.Debugf("Workspace %s not ready on Kong node for plugin %s (attempt %d/%d), retrying in %v", workspaceName, plugin.Name, attempt, maxAttempts, backoff)
+			time.Sleep(backoff)
+		}
 	}
 
+	// All retry attempts exhausted — workspace namespace did not become ready in time.
 	logger.Errorf("Failed to create plugin %s in workspace %s after %d attempts: %v", plugin.Name, workspaceName, maxAttempts, lastErr)
 	return fmt.Errorf("failed to create plugin %s after %d attempts: %w", plugin.Name, maxAttempts, lastErr)
 }
