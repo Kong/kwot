@@ -89,6 +89,11 @@ func LoadConfig(configFile string) error {
 		cfg.MaxRetryAttempts = 5
 	}
 
+	// Ensure HTTPRequestTimeout is positive; 0 disables Go's HTTP client timeout entirely
+	if cfg.HTTPRequestTimeout <= 0 {
+		cfg.HTTPRequestTimeout = 30
+	}
+
 	// Validate required fields
 	if cfg.AuthMethod == "" {
 		return fmt.Errorf("ERROR: AUTH_METHOD not set\nMust be one of: RBAC or PASSWORD\nExample: export AUTH_METHOD=RBAC\nThen set corresponding credentials:\n  - For RBAC: export ADMIN_TOKEN=<token>\n  - For PASSWORD: export ADMIN_USER=<user> BASE64_UID_PWD=<base64_credentials>")

@@ -1125,7 +1125,12 @@ func (p *Processor) applyPlugin(workspaceName string, plugin models.Plugin) erro
 		// Workspace namespace not yet ready on this Kong CP node — retry with backoff.
 		// This happens on multi-node CP clusters when the new workspace record has been
 		// committed to the DB but not all nodes have rebuilt their router cache yet.
-		if strings.Contains(errStr, "not found") || strings.Contains(errStr, "404") {
+		// We intentionally narrow this to workspace-specific 404s ("Workspace ... not found")
+		// to avoid retrying on permanent 404s (wrong workspace name, unsupported endpoint, etc.)
+		// which would only add delay and mask the real root cause.
+		isWorkspaceNotReady := strings.Contains(errStr, "not found") &&
+			strings.Contains(strings.ToLower(errStr), "workspace")
+		if isWorkspaceNotReady {
 			lastErr = err
 			if attempt < maxAttempts {
 				backoff := time.Duration(attempt*200) * time.Millisecond
