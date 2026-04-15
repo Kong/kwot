@@ -640,6 +640,17 @@ func (p *Processor) DeleteWorkspace(workspaceName string) error {
 
 	resp, err := p.client.DELETEWithParams(workspacePath, cascadeParams)
 	if err != nil {
+		errStr := err.Error()
+		// A timeout means Kong is still processing the cascade delete (large workspace).
+		// Increase KONG_REQUEST_TIMEOUT in .env to give Kong more time.
+		if strings.Contains(errStr, "context deadline exceeded") || strings.Contains(errStr, "timeout") {
+			return fmt.Errorf(
+				"failed to delete workspace %s (path: %s): %w -- "+
+					"the request timed out; the workspace may have too many entities for the current KONG_REQUEST_TIMEOUT (%d s). "+
+					"Increase KONG_REQUEST_TIMEOUT in .env and retry",
+				workspaceName, workspacePath, err, p.cfg.HTTPRequestTimeout,
+			)
+		}
 		return fmt.Errorf(
 			"failed to delete workspace %s (path: %s): %w -- "+
 				"cascade=true requires Kong Gateway 3.4.0+; verify your Kong version and that the workspace exists",
@@ -1071,7 +1082,12 @@ func (p *Processor) applyPlugins(workspaceName string, plugins []models.Plugin) 
 	return nil
 }
 
-// applyPlugin applies a single plugin to a workspace
+// applyPlugin applies a single plugin to a workspace.
+// On large Kong deployments with multiple CP nodes the workspace namespace may not
+// yet be initialised on every node right after creation.  Requests are load-balanced
+// across nodes, so a POST that lands on a node whose cache has not caught up yet
+// returns 404 "Workspace not found" even though GET /workspaces/{name} already
+// succeeded on a different node.  We retry with backoff on those transient 404s.
 func (p *Processor) applyPlugin(workspaceName string, plugin models.Plugin) error {
 	if p.dryRun {
 		logger.Infof("[DRY-RUN] Would create plugin %s in workspace %s", plugin.Name, workspaceName)
@@ -1080,7 +1096,6 @@ func (p *Processor) applyPlugin(workspaceName string, plugin models.Plugin) erro
 
 	logger.Infof("Attempting to create plugin %s in workspace %s", plugin.Name, workspaceName)
 
-	// Create plugin in the workspace
 	payload := map[string]interface{}{
 		"name":   plugin.Name,
 		"config": plugin.Config,
@@ -1088,18 +1103,45 @@ func (p *Processor) applyPlugin(workspaceName string, plugin models.Plugin) erro
 
 	path := fmt.Sprintf("/%s/plugins", workspaceName)
 	logger.Debugf("Creating plugin at path: %s with payload: %+v", path, payload)
-	var result map[string]interface{}
-	if err := p.client.PostJSON(path, payload, &result); err != nil {
-		// If plugin already exists (409 UNIQUE violation), just log it as info and continue
+
+	maxAttempts := p.cfg.MaxRetryAttempts
+	var lastErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		var result map[string]interface{}
+		err := p.client.PostJSON(path, payload, &result)
+		if err == nil {
+			logger.Infof("Plugin %s created in workspace %s", plugin.Name, workspaceName)
+			return nil
+		}
+
 		errStr := err.Error()
+
+		// Plugin already exists — idempotent, not an error.
 		if strings.Contains(errStr, "409") || strings.Contains(errStr, "UNIQUE violation") || strings.Contains(errStr, "already exists") {
 			logger.Infof("Plugin %s already exists in workspace %s", plugin.Name, workspaceName)
 			return nil
 		}
+
+		// Workspace namespace not yet ready on this Kong CP node — retry with backoff.
+		// This happens on multi-node CP clusters when the new workspace record has been
+		// committed to the DB but not all nodes have rebuilt their router cache yet.
+		if strings.Contains(errStr, "not found") || strings.Contains(errStr, "404") {
+			lastErr = err
+			if attempt < maxAttempts {
+				backoff := time.Duration(attempt*200) * time.Millisecond
+				logger.Debugf("Workspace %s not ready on Kong node for plugin %s (attempt %d/%d), retrying in %v", workspaceName, plugin.Name, attempt, maxAttempts, backoff)
+				time.Sleep(backoff)
+				continue
+			}
+			logger.Errorf("Failed to create plugin %s in workspace %s after %d attempts: %v", plugin.Name, workspaceName, maxAttempts, lastErr)
+			return fmt.Errorf("failed to create plugin %s after %d attempts: %w", plugin.Name, maxAttempts, lastErr)
+		}
+
+		// Any other error — fail immediately.
 		logger.Errorf("Failed to create plugin %s in workspace %s: %v", plugin.Name, workspaceName, err)
 		return fmt.Errorf("failed to create plugin %s: %w", plugin.Name, err)
 	}
 
-	logger.Infof("Plugin %s created in workspace %s", plugin.Name, workspaceName)
-	return nil
+	logger.Errorf("Failed to create plugin %s in workspace %s after %d attempts: %v", plugin.Name, workspaceName, maxAttempts, lastErr)
+	return fmt.Errorf("failed to create plugin %s after %d attempts: %w", plugin.Name, maxAttempts, lastErr)
 }

@@ -65,7 +65,7 @@ func NewClient(cfg *config.Config) (*Client, error) {
 
 	httpClient := &http.Client{
 		Transport: transport,
-		Timeout:   10 * time.Second,
+		Timeout:   time.Duration(cfg.HTTPRequestTimeout) * time.Second,
 		// Disable automatic redirect following to capture cookies from /auth endpoint (PASSWORD auth)
 		// Kong Admin API does not use redirects for other endpoints, so this is safe globally
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
