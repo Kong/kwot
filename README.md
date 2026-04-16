@@ -178,6 +178,8 @@ Place this at the config root (global) or inside a workspace folder (takes prior
 | `ADMIN_USER` + `BASE64_UID_PWD` | — | Credentials for PASSWORD auth |
 | `CONFIG_DIR` | `./config/` | Config files location |
 | `MAX_CONCURRENT_WORKSPACES` | `5` | Parallel workspace processing |
+| `MAX_RETRY_ATTEMPTS` | `5` | Retry attempts for resource availability checks after creation |
+| `KONG_REQUEST_TIMEOUT` | `30` | HTTP request timeout in seconds for all Kong Admin API calls. Increase for large workspaces where cascade delete takes longer than the default (symptoms: `context deadline exceeded` on delete). Recommended: `60`–`120` for 500+ entity workspaces. |
 
 ---
 
@@ -193,6 +195,24 @@ Place this at the config root (global) or inside a workspace folder (takes prior
 If a workspace has the Dev Portal enabled, it accumulates portal files (HTML pages, CSS, JS, images, email templates, YAML config). These are not visible in the standard entity counts shown by most Admin API endpoints, but they block workspace deletion.
 
 kwot uses `DELETE /workspaces/{id}?cascade=true` (Kong 3.4.0+) which removes the workspace and **all** its child resources — including Dev Portal files — in a single atomic operation. No manual pre-cleanup is needed.
+
+### Workspace deletion timeout on large deployments
+
+On Kong clusters with a large number of entities per workspace (hundreds of services, routes, plugins, RBAC users, etc.), the cascade delete can take more than the default 30-second HTTP timeout. Symptoms: `context deadline exceeded` error in kwot even though Kong eventually returns HTTP 204 (the deletion did succeed server-side).
+
+Set a longer timeout in `.env`:
+```
+KONG_REQUEST_TIMEOUT=120
+```
+
+### Plugin 404 immediately after workspace creation (multi-node CP)
+
+On multi-node Kong Control Plane clusters, a newly created workspace record is written to the database immediately, but each CP node rebuilds its internal routing cache asynchronously. If a plugin creation request is load-balanced to a node whose cache has not yet caught up, Kong returns `404 Workspace not found` even though the workspace exists.
+
+kwot retries plugin creation automatically on 404 responses using a backoff strategy (200 ms × attempt). The number of retries is controlled by `MAX_RETRY_ATTEMPTS` (default: `5`, giving up to ~3 seconds of retry window). Increase this on clusters where cache propagation is slow:
+```
+MAX_RETRY_ATTEMPTS=10
+```
 
 ---
 

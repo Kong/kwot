@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.11] - 2026-04-15
+
+### Fixed
+
+- **Workspace deletion timeout on large deployments** — cascade delete (`DELETE /workspaces/{id}?cascade=true`) now respects the new `KONG_REQUEST_TIMEOUT` env var (default 30 s) instead of the previous hardcoded 10-second HTTP client timeout. On clusters with many entities per workspace the deletion was succeeding server-side (Kong returned HTTP 204) but kwot had already given up and reported `context deadline exceeded`. Increase `KONG_REQUEST_TIMEOUT` in `.env` to give Kong enough time (e.g. `120` for 500+ entity workspaces).
+- **Plugin 404 immediately after workspace creation on multi-node CP clusters** — on deployments with multiple Kong Control Plane nodes, a newly created workspace is written to the database immediately but CP nodes rebuild their routing cache asynchronously. Plugin POST requests load-balanced to a node whose cache has not yet caught up returned `404 Workspace not found` even though the workspace existed. kwot now retries plugin creation on 404 responses with a 200 ms × attempt backoff (controlled by `MAX_RETRY_ATTEMPTS`, default 5).
+- **Misleading error hint on delete timeout** — the error message for a timed-out cascade delete previously appended `"cascade=true requires Kong Gateway 3.4.0+; verify your Kong version"`, which was incorrect when the actual cause was a timeout. The message now distinguishes timeout errors and instructs the operator to raise `KONG_REQUEST_TIMEOUT`.
+
+### Added
+
+- New env var `KONG_REQUEST_TIMEOUT` (integer, seconds, default `30`) — configures the HTTP client timeout for all Kong Admin API calls. Previously hardcoded to 10 s; raising it is required for reliable cascade deletion of large workspaces.
+
+### Changed
+
+- `.env.example` and README updated to document `KONG_REQUEST_TIMEOUT` and the multi-node plugin retry behaviour.
+
 ## [1.0.10] - 2026-04-10
 
 ### Security

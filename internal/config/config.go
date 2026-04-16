@@ -39,6 +39,9 @@ type Config struct {
 
 	// Retry settings
 	MaxRetryAttempts int
+
+	// HTTP timeout settings
+	HTTPRequestTimeout int // seconds; used as the global HTTP client timeout
 }
 
 var globalConfig *Config
@@ -78,11 +81,17 @@ func LoadConfig(configFile string) error {
 
 		MaxConcurrentWorkspaces: getEnvInt("MAX_CONCURRENT_WORKSPACES", 5),
 		MaxRetryAttempts:        getEnvInt("MAX_RETRY_ATTEMPTS", 5),
+		HTTPRequestTimeout:      getEnvInt("KONG_REQUEST_TIMEOUT", 30),
 	}
 
 	// Ensure MaxRetryAttempts is positive; fall back to default if misconfigured
 	if cfg.MaxRetryAttempts <= 0 {
 		cfg.MaxRetryAttempts = 5
+	}
+
+	// Ensure HTTPRequestTimeout is positive; non-positive values fall back to the default
+	if cfg.HTTPRequestTimeout <= 0 {
+		cfg.HTTPRequestTimeout = 30
 	}
 
 	// Validate required fields
