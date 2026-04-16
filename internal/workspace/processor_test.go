@@ -51,6 +51,18 @@ func workspaceListHandler(wsName, wsID string, deleteFn func(w http.ResponseWrit
 			return
 		}
 		if r.Method == http.MethodDelete {
+			// Assert the expected path and cascade=true param are present
+			expectedPath := "/workspaces/" + wsID
+			if r.URL.Path != expectedPath {
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte(`{"message":"unexpected delete path: ` + r.URL.Path + `"}`))
+				return
+			}
+			if r.URL.Query().Get("cascade") != "true" {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(`{"message":"missing cascade=true"}`))
+				return
+			}
 			deleteFn(w, r)
 			return
 		}
@@ -112,10 +124,13 @@ func TestDeleteWorkspace_NonTimeoutErrorMessage(t *testing.T) {
 // TestApplyPlugin_SuccessOnFirstAttempt verifies the happy path.
 func TestApplyPlugin_SuccessOnFirstAttempt(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost {
+		if r.Method == http.MethodPost && r.URL.Path == "/test-ws/plugins" {
 			w.WriteHeader(http.StatusCreated)
 			_, _ = w.Write([]byte(`{"id":"plug-1","name":"key-auth"}`))
+			return
 		}
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"message":"unexpected request"}`))
 	})
 
 	proc, server := newTestProcessor(t, handler, 30, 5)
@@ -129,8 +144,13 @@ func TestApplyPlugin_SuccessOnFirstAttempt(t *testing.T) {
 // TestApplyPlugin_IdempotentOn409 verifies that a 409 conflict is not an error.
 func TestApplyPlugin_IdempotentOn409(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusConflict)
-		_, _ = w.Write([]byte(`{"message":"UNIQUE violation"}`))
+		if r.Method == http.MethodPost && r.URL.Path == "/test-ws/plugins" {
+			w.WriteHeader(http.StatusConflict)
+			_, _ = w.Write([]byte(`{"message":"UNIQUE violation"}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"message":"unexpected request"}`))
 	})
 
 	proc, server := newTestProcessor(t, handler, 30, 5)
