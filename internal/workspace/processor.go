@@ -656,7 +656,7 @@ func (p *Processor) DeleteWorkspace(workspaceName string) error {
 			return fmt.Errorf(
 				"failed to delete workspace %s (path: %s): %w -- "+
 					"the request timed out; the workspace may have too many entities for the current KONG_REQUEST_TIMEOUT (%d s). "+
-					"Increase KONG_REQUEST_TIMEOUT in .env and retry",
+					"Increase KONG_REQUEST_TIMEOUT in your environment (or .env) and retry",
 				workspaceName, workspacePath, err, p.cfg.HTTPRequestTimeout,
 			)
 		}
@@ -1114,6 +1114,9 @@ func (p *Processor) applyPlugin(workspaceName string, plugin models.Plugin) erro
 	logger.Debugf("Creating plugin at path: %s with payload: %+v", path, payload)
 
 	maxAttempts := p.cfg.MaxRetryAttempts
+	if maxAttempts < 1 {
+		maxAttempts = 1
+	}
 	var lastErr error
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		var result map[string]interface{}

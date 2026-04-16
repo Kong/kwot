@@ -1,7 +1,6 @@
 package config
 
 import (
-	"os"
 	"testing"
 )
 
@@ -45,9 +44,7 @@ func TestHTTPRequestTimeoutParsing(t *testing.T) {
 			if tt.envValue != "" {
 				t.Setenv("KONG_REQUEST_TIMEOUT", tt.envValue)
 			} else {
-				if err := os.Unsetenv("KONG_REQUEST_TIMEOUT"); err != nil {
-					t.Fatalf("os.Unsetenv failed: %v", err)
-				}
+				t.Setenv("KONG_REQUEST_TIMEOUT", "")
 			}
 			// Provide the minimum required env vars so LoadConfig doesn't error
 			t.Setenv("AUTH_METHOD", "RBAC")
