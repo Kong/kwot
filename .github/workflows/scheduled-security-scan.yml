@@ -7,13 +7,16 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   issues: write
+  pull-requests: write
 
 jobs:
   security-scan:
     name: Vulnerability Scan
     runs-on: ubuntu-latest
+    outputs:
+      vulnerabilities_found: ${{ steps.vulnscan.outputs.vulnerabilities_found }}
     steps:
       - uses: actions/checkout@v4
 
@@ -26,16 +29,38 @@ jobs:
         id: vulnscan
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          # Check exit code approach is more reliable than pattern matching
           if ! govulncheck ./... > /tmp/vuln_output.txt 2>&1; then
-            echo "VULNERABILITIES_FOUND=true" >> $GITHUB_ENV
-            echo "VULN_OUTPUT<<EOF" >> $GITHUB_ENV
-            cat /tmp/vuln_output.txt >> $GITHUB_ENV
-            echo "EOF" >> $GITHUB_ENV
+            echo "vulnerabilities_found=true"  >> "$GITHUB_OUTPUT"
+            echo "VULNERABILITIES_FOUND=true"  >> "$GITHUB_ENV"
+            echo "VULN_OUTPUT<<EOF"            >> "$GITHUB_ENV"
+            cat /tmp/vuln_output.txt           >> "$GITHUB_ENV"
+            echo "EOF"                         >> "$GITHUB_ENV"
+          else
+            echo "vulnerabilities_found=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Check for existing open fix PR
+        if: steps.vulnscan.outputs.vulnerabilities_found == 'true'
+        id: check_pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          OPEN=$(gh pr list --label "security,automated" --state open --json number --jq 'length')
+          echo "open_fix_prs=${OPEN}" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger auto-fix workflow
+        if: >
+          steps.vulnscan.outputs.vulnerabilities_found == 'true' &&
+          steps.check_pr.outputs.open_fix_prs == '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run auto-fix-go-toolchain.yml \
+            --field dry_run=false
+          echo "✅ Triggered auto-fix-go-toolchain workflow"
+
       - name: Check for existing vulnerability issue
-        if: env.VULNERABILITIES_FOUND == 'true'
+        if: steps.vulnscan.outputs.vulnerabilities_found == 'true'
         id: check_issue
         uses: actions/github-script@v7.0.1
         with:
@@ -48,27 +73,48 @@ jobs:
             });
             core.setOutput('has_no_issue', issues.data.length === 0 ? 'true' : 'false');
 
-      - name: Create vulnerability issue
-        if: env.VULNERABILITIES_FOUND == 'true' && steps.check_issue.outputs.has_no_issue == 'true'
+      - name: Create vulnerability issue (fallback audit trail)
+        if: >
+          steps.vulnscan.outputs.vulnerabilities_found == 'true' &&
+          steps.check_issue.outputs.has_no_issue == 'true'
         uses: actions/github-script@v7.0.1
         with:
           script: |
             const workflowUrl = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}';
             const vulnOutput = process.env.VULN_OUTPUT || 'See workflow run for details';
-            const body = `A scheduled security scan detected vulnerabilities in the Go dependencies.\n\n**Action Required:** Please review and address the vulnerabilities.\n\n- [View workflow run](${workflowUrl})\n- Run \`govulncheck ./...\` locally for details\n- Update dependencies or apply patches as needed\n\n<details>\n<summary>Vulnerability Details</summary>\n\n\`\`\`\n${vulnOutput}\n\`\`\`\n\n</details>\n\nThis issue will remain open until all vulnerabilities are resolved.`;
+            const body = [
+              'A scheduled security scan detected vulnerabilities in the Go dependencies.',
+              '',
+              '**Auto-fix triggered:** The `auto-fix-go-toolchain` workflow has been dispatched and will open a PR automatically.',
+              '',
+              `- [View scan run](${workflowUrl})`,
+              '- Run `govulncheck ./...` locally for details',
+              '',
+              '<details>',
+              '<summary>Vulnerability Details</summary>',
+              '',
+              '```',
+              vulnOutput,
+              '```',
+              '',
+              '</details>',
+              '',
+              'This issue will close automatically when the fix PR is merged.',
+            ].join('\n');
+
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: '🚨 Security vulnerability detected in scheduled scan',
-              body: body,
-              labels: ['security', 'vulnerability']
+              body,
+              labels: ['security', 'vulnerability'],
             });
 
       - name: Report scan results
         if: always()
         run: |
-          if [ "${{ env.VULNERABILITIES_FOUND }}" == "true" ]; then
-            echo "⚠️  Vulnerabilities detected! A GitHub issue has been created."
+          if [ "${{ steps.vulnscan.outputs.vulnerabilities_found }}" == "true" ]; then
+            echo "⚠️  Vulnerabilities detected — auto-fix PR will be opened shortly."
             exit 1
           else
             echo "✅ No vulnerabilities found in scheduled scan."

@@ -260,6 +260,7 @@ func TestLoadGroupConfig_All_MultiWorkspaceGroupInGlobal(t *testing.T) {
 	}
 	if crossGroup == nil {
 		t.Fatal("cross-workspace-group should be present (demo4 role not covered by local file)")
+		return
 	}
 	if len(crossGroup.Roles) != 1 {
 		t.Fatalf("expected 1 role (demo4 only), got %d: %+v", len(crossGroup.Roles), crossGroup.Roles)

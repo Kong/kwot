@@ -1,0 +1,203 @@
+name: Auto-Fix Go Toolchain Vulnerabilities
+
+# Triggered by the scheduled security scan when govulncheck finds stdlib vulns.
+# Parses the fixed Go version, bumps go.mod + Dockerfile + CHANGELOG + Makefile,
+# then opens a PR. CI on that PR runs govulncheck again — if clean, the
+# auto-merge workflow merges it and auto-release.yml cuts the tag + release.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run — build PR diff but do not open PR"
+        required: false
+        default: "false"
+  workflow_call:
+    inputs:
+      dry_run:
+        required: false
+        type: string
+        default: "false"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  detect-and-fix:
+    name: Detect vulnerable Go version and open fix PR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run govulncheck and parse fixed version
+        id: scan
+        run: |
+          set +e
+          govulncheck ./... > /tmp/vuln_output.txt 2>&1
+          EXIT=$?
+          set -e
+
+          cat /tmp/vuln_output.txt
+
+          if [ $EXIT -eq 0 ]; then
+            echo "clean=true" >> "$GITHUB_OUTPUT"
+            echo "✅ No vulnerabilities found — nothing to fix."
+            exit 0
+          fi
+
+          echo "clean=false" >> "$GITHUB_OUTPUT"
+
+          # Extract the highest fixed Go version from output lines like:
+          #   Fixed in: net@go1.26.3
+          #   Fixed in: net/http@go1.26.3
+          FIXED_VERSION=$(grep -oP 'Fixed in:.*?go\K[0-9]+\.[0-9]+\.[0-9]+' /tmp/vuln_output.txt \
+            | sort -V | tail -1)
+
+          if [ -z "$FIXED_VERSION" ]; then
+            echo "⚠️  Vulnerabilities found but could not parse a fixed Go version."
+            echo "    Manual intervention required."
+            exit 1
+          fi
+
+          echo "fixed_version=${FIXED_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Vulnerabilities fixed in Go ${FIXED_VERSION}"
+
+      - name: Check if fix is already on main
+        id: already_fixed
+        if: steps.scan.outputs.clean == 'false'
+        run: |
+          CURRENT=$(grep '^toolchain' go.mod | grep -oP 'go\K[0-9]+\.[0-9]+\.[0-9]+')
+          FIXED="${{ steps.scan.outputs.fixed_version }}"
+
+          if [ "$(printf '%s\n' "$FIXED" "$CURRENT" | sort -V | tail -1)" = "$CURRENT" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Current toolchain go${CURRENT} >= fixed go${FIXED} — nothing to do."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "Toolchain needs upgrade: go${CURRENT} → go${FIXED}"
+          fi
+
+      - name: Apply fixes
+        id: fix
+        if: steps.scan.outputs.clean == 'false' && steps.already_fixed.outputs.skip == 'false'
+        run: |
+          FIXED="${{ steps.scan.outputs.fixed_version }}"
+          CURRENT=$(grep '^toolchain' go.mod | grep -oP 'go\K[0-9]+\.[0-9]+\.[0-9]+')
+          TODAY=$(date -u '+%Y-%m-%d')
+
+          # --- go.mod ---
+          sed -i "s/^toolchain go${CURRENT}$/toolchain go${FIXED}/" go.mod
+          echo "✓ go.mod: go${CURRENT} → go${FIXED}"
+
+          # --- Dockerfile ---
+          sed -i "s/golang:${CURRENT}-alpine/golang:${FIXED}-alpine/g" Dockerfile
+          echo "✓ Dockerfile: golang:${CURRENT}-alpine → golang:${FIXED}-alpine"
+
+          # --- Makefile VERSION bump (patch) ---
+          OLD_VER=$(grep -m1 '^VERSION' Makefile | grep -oP '[0-9]+\.[0-9]+\.[0-9]+')
+          PATCH=$(echo "$OLD_VER" | cut -d. -f3)
+          NEW_PATCH=$((PATCH + 1))
+          NEW_VER=$(echo "$OLD_VER" | cut -d. -f1-2).${NEW_PATCH}
+          sed -i "s/^VERSION?=${OLD_VER}/VERSION?=${NEW_VER}/" Makefile
+          echo "✓ Makefile: ${OLD_VER} → ${NEW_VER}"
+
+          # --- CHANGELOG ---
+          VULN_LINES=$(grep -oP 'Vulnerability #[0-9]+: \KGO-[0-9]+-[0-9]+' /tmp/vuln_output.txt \
+            | sort -u | sed 's/^/  - **/' | sed 's/$/**/')
+
+          CHANGELOG_ENTRY="## [${NEW_VER}] - ${TODAY}\n\n### Security\n\n- Update Go toolchain from \`go${CURRENT}\` to \`go${FIXED}\` to fix Go standard library vulnerabilities:\n${VULN_LINES}\n\n### Changed\n\n- \`go.mod\` toolchain pin updated from \`go${CURRENT}\` to \`go${FIXED}\`\n- \`Dockerfile\` builder stage updated from \`golang:${CURRENT}-alpine\` to \`golang:${FIXED}-alpine\`\n\n"
+
+          # Insert after the first line (# Changelog header)
+          awk -v entry="$CHANGELOG_ENTRY" 'NR==3{print entry}1' CHANGELOG.md > /tmp/CHANGELOG.tmp
+          mv /tmp/CHANGELOG.tmp CHANGELOG.md
+          echo "✓ CHANGELOG.md: added entry for ${NEW_VER}"
+
+          # Export for later steps
+          echo "old_version=${OLD_VER}" >> "$GITHUB_OUTPUT"
+          echo "new_version=${NEW_VER}" >> "$GITHUB_OUTPUT"
+          echo "old_toolchain=${CURRENT}" >> "$GITHUB_OUTPUT"
+          echo "new_toolchain=${FIXED}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify fix with govulncheck
+        if: steps.scan.outputs.clean == 'false' && steps.already_fixed.outputs.skip == 'false'
+        env:
+          GOTOOLCHAIN: go${{ steps.scan.outputs.fixed_version }}
+        run: |
+          govulncheck ./...
+          echo "✅ govulncheck clean with go${{ steps.scan.outputs.fixed_version }}"
+
+      - name: Open fix PR
+        if: >
+          steps.scan.outputs.clean == 'false' &&
+          steps.already_fixed.outputs.skip == 'false' &&
+          inputs.dry_run != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          OLD_TC="${{ steps.fix.outputs.old_toolchain }}"
+          NEW_TC="${{ steps.fix.outputs.new_toolchain }}"
+          OLD_VER="${{ steps.fix.outputs.old_version }}"
+          NEW_VER="${{ steps.fix.outputs.new_version }}"
+          BRANCH="fix/auto-go-toolchain-${NEW_TC}"
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git checkout -b "$BRANCH"
+          git add go.mod Dockerfile Makefile CHANGELOG.md
+          git commit -m "fix(security): auto-bump Go toolchain go${OLD_TC} → go${NEW_TC}
+
+          Automated fix: govulncheck detected standard library vulnerabilities
+          resolved in Go ${NEW_TC}. Bumps toolchain in go.mod and Dockerfile.
+          Version: ${OLD_VER} → ${NEW_VER}
+
+          govulncheck ./... is clean with go${NEW_TC}."
+
+          git push origin "$BRANCH"
+
+          VULN_IDS=$(grep -oP 'Vulnerability #[0-9]+: \KGO-[0-9]+-[0-9]+' /tmp/vuln_output.txt \
+            | sort -u | sed 's/^/| /' | sed 's/$/ |/' | \
+            awk '{print $0" Auto-fixed by toolchain upgrade |"}')
+
+          gh pr create \
+            --title "fix(security): auto-bump Go toolchain go${OLD_TC} → go${NEW_TC} (v${NEW_VER})" \
+            --body "## Automated Security Fix
+
+          This PR was opened automatically by the \`auto-fix-go-toolchain\` workflow.
+
+          ### What changed
+
+          | File | Change |
+          |------|--------|
+          | \`go.mod\` | \`toolchain go${OLD_TC}\` → \`toolchain go${NEW_TC}\` |
+          | \`Dockerfile\` | \`golang:${OLD_TC}-alpine\` → \`golang:${NEW_TC}-alpine\` |
+          | \`Makefile\` | \`VERSION=${OLD_VER}\` → \`VERSION=${NEW_VER}\` |
+          | \`CHANGELOG.md\` | Added entry for \`${NEW_VER}\` |
+
+          ### Vulnerabilities fixed
+
+          $(grep -oP 'Vulnerability #[0-9]+: \KGO-[0-9]+-[0-9]+' /tmp/vuln_output.txt \
+            | sort -u | sed 's/^/- **/' | sed 's/$/**/')
+
+          ### Verification
+
+          - [x] \`govulncheck ./...\` — **No vulnerabilities found** with go${NEW_TC}
+          - CI will run full \`fmt / lint / test / build / govulncheck\` suite
+
+          Once CI is green this PR will be auto-merged by the \`auto-merge-security-prs\` workflow." \
+            --label "security" \
+            --label "automated" \
+            --base main \
+            --head "$BRANCH"
+
+          echo "✅ PR opened: fix/auto-go-toolchain-${NEW_TC}"
