@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.12] - 2026-05-26
+
+### Security
+
+- Update Go toolchain from `go1.26.2` to `go1.26.3` to fix 2 Go standard library vulnerabilities (closes #24):
+  - **GO-2026-4971**: Panic in `Dial` and `LookupPort` when handling NUL byte on Windows in `net`
+  - **GO-2026-4918**: Infinite loop in HTTP/2 transport when given bad `SETTINGS_MAX_FRAME_SIZE` in `net/http`
+
+- Bump `fast-uri` (transitive npm dev dependency via `@commitlint/cli`) from `3.1.0` → `3.1.2` to fix:
+  - **CVE-2026-6321** (GHSA-q3j6-qgpj-74h6): Path traversal via percent-encoded dot segments in URI normalization
+  - **CVE-2026-6322** (GHSA-v39h-62p7-jpjc): Host confusion via percent-encoded authority delimiters
+
+### Changed
+
+- `go.mod` toolchain pin updated from `go1.26.2` to `go1.26.3`
+- `Dockerfile` builder stage updated from `golang:1.26.2-alpine` to `golang:1.26.3-alpine`
+- `package-lock.json` updated to resolve `fast-uri` to `3.1.2`
+
 ## [1.0.11] - 2026-04-15
 
 ### Fixed
