@@ -13,9 +13,9 @@ import (
 // client timeout to the value in cfg.HTTPRequestTimeout, not a hardcoded value.
 func TestHTTPClientTimeoutDerivedFromConfig(t *testing.T) {
 	tests := []struct {
-		name            string
-		configuredSecs  int
-		wantTimeout     time.Duration
+		name           string
+		configuredSecs int
+		wantTimeout    time.Duration
 	}{
 		{
 			name:           "30 second timeout",

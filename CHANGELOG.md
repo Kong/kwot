@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.12] - 2026-05-26
+
+### Security
+
+- Update Go toolchain from `go1.26.2` to `go1.26.3` to fix 2 Go standard library vulnerabilities (closes #24):
+  - **GO-2026-4971**: Panic in `Dial` and `LookupPort` when handling NUL byte on Windows in `net`
+  - **GO-2026-4918**: Infinite loop in HTTP/2 transport when given bad `SETTINGS_MAX_FRAME_SIZE` in `net/http`
+
+### Changed
+
+- `go.mod` toolchain pin updated from `go1.26.2` to `go1.26.3`
+- `Dockerfile` builder stage updated from `golang:1.26.2-alpine` to `golang:1.26.3-alpine`
+
 ## [1.0.11] - 2026-04-15
 
 ### Fixed
