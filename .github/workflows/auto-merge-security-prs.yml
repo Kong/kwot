@@ -1,0 +1,79 @@
+name: Auto-Merge Security PRs
+
+# Merges PRs that are labelled both "security" and "automated" once all
+# required CI checks pass. Only fires on PRs targeting main.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+    branches: [main]
+  check_suite:
+    types: [completed]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    name: Auto-merge if security + automated + CI green
+    runs-on: ubuntu-latest
+    # Only act on PRs that carry both labels
+    if: >
+      github.event_name == 'pull_request' ||
+      github.event_name == 'workflow_run'
+    steps:
+      - name: Find eligible security PRs
+        id: find_pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          # List open PRs with both security + automated labels targeting main
+          PRS=$(gh pr list \
+            --repo "$REPO" \
+            --base main \
+            --state open \
+            --label "security" \
+            --label "automated" \
+            --json number,title,statusCheckRollup \
+            --jq '.[] | select(.statusCheckRollup != null)')
+
+          if [ -z "$PRS" ]; then
+            echo "No eligible security PRs found."
+            echo "pr_number=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Find first PR where all checks are SUCCESS (none pending/failing)
+          PR_NUMBER=$(echo "$PRS" | jq -r '
+            select(
+              (.statusCheckRollup | length > 0) and
+              (.statusCheckRollup | all(.conclusion == "SUCCESS" or .conclusion == "SKIPPED"))
+            ) | .number' | head -1)
+
+          echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+
+          if [ -n "$PR_NUMBER" ]; then
+            echo "✅ PR #${PR_NUMBER} is eligible for auto-merge"
+          else
+            echo "ℹ️  No PRs with all checks green yet — will retry on next CI event"
+          fi
+
+      - name: Merge eligible PR
+        if: steps.find_pr.outputs.pr_number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ steps.find_pr.outputs.pr_number }}
+        run: |
+          gh pr merge "$PR" \
+            --repo "$REPO" \
+            --squash \
+            --delete-branch \
+            --subject "fix(security): auto-merge security fix PR #${PR}"
+
+          echo "✅ PR #${PR} merged successfully"
+          echo "auto-release.yml will fire and cut the release tag."

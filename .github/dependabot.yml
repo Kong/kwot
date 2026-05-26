@@ -1,6 +1,7 @@
 version: 2
 updates:
   # Go dependencies - report only, no automatic PRs
+  # Go stdlib vulns are handled by auto-fix-go-toolchain.yml
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
@@ -14,3 +15,17 @@ updates:
     allow:
       - dependency-type: "direct"
       - dependency-type: "indirect"
+
+  # npm dev dependencies - auto PRs enabled (dev-only, not shipped in binary)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "npm", "security"]
+    commit-message:
+      prefix: "fix(deps):"
+    allow:
+      - dependency-type: "development"
