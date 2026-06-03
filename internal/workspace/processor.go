@@ -525,8 +525,31 @@ func (p *Processor) getCurrentRBACUsers(workspaceName string) ([]string, error) 
 	return userNames, nil
 }
 
+// isValidEnvVarName reports whether name is a valid POSIX env var identifier:
+// must start with a letter or underscore, followed only by letters, digits, or underscores.
+func isValidEnvVarName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for i, c := range name {
+		switch {
+		case c == '_':
+			// always valid
+		case c >= 'A' && c <= 'Z', c >= 'a' && c <= 'z':
+			// always valid
+		case c >= '0' && c <= '9':
+			if i == 0 {
+				return false // digits not allowed at start
+			}
+		default:
+			return false
+		}
+	}
+	return true
+}
+
 // resolveEnvVar expands ${VAR} or $VAR references in s using os.Getenv.
-// Returns the original string unchanged if it is not an env var reference.
+// Only expands when the var name is a valid POSIX identifier; otherwise returns s unchanged.
 // Returns "" (triggering UUID fallback) if the referenced var is unset, and logs a warning.
 func resolveEnvVar(userName, s string) string {
 	if s == "" {
@@ -540,7 +563,7 @@ func resolveEnvVar(userName, s string) string {
 	} else {
 		return s
 	}
-	if varName == "" {
+	if !isValidEnvVarName(varName) {
 		return s
 	}
 	val := os.Getenv(varName)

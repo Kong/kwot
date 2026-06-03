@@ -276,12 +276,20 @@ func TestResolveEnvVar(t *testing.T) {
 		input    string
 		expected string
 	}{
+		// valid env var references — should resolve
 		{"${MY_TOKEN}", "secret123"},
 		{"$MY_TOKEN", "secret123"},
-		{"literal-token", "literal-token"},
-		{"", ""},
+		// unset var — should return "" (UUID fallback)
 		{"${UNSET_VAR}", ""},
 		{"$UNSET_VAR", ""},
+		// literal tokens — must be returned unchanged even when starting with $
+		{"literal-token", "literal-token"},
+		{"", ""},
+		{"$abc-def", "$abc-def"},     // hyphen makes it an invalid identifier
+		{"${abc-def}", "${abc-def}"}, // hyphen inside braces — also invalid
+		{"$1TOKEN", "$1TOKEN"},       // starts with digit — invalid
+		{"$", "$"},                   // bare dollar — invalid
+		{"${}", "${}"},               // empty braces — invalid
 	}
 
 	for _, tc := range tests {
@@ -295,5 +303,28 @@ func TestResolveEnvVar(t *testing.T) {
 	t.Setenv("DYNAMIC_TOKEN", "dynval")
 	if got := resolveEnvVar("u", "${DYNAMIC_TOKEN}"); got != "dynval" {
 		t.Errorf("expected dynval, got %q", got)
+	}
+}
+
+func TestIsValidEnvVarName(t *testing.T) {
+	tests := []struct {
+		name  string
+		valid bool
+	}{
+		{"MY_TOKEN", true},
+		{"_PRIVATE", true},
+		{"TOKEN123", true},
+		{"A", true},
+		{"", false},
+		{"1TOKEN", false},
+		{"abc-def", false},
+		{"abc.def", false},
+		{"abc def", false},
+	}
+	for _, tc := range tests {
+		got := isValidEnvVarName(tc.name)
+		if got != tc.valid {
+			t.Errorf("isValidEnvVarName(%q) = %v, want %v", tc.name, got, tc.valid)
+		}
 	}
 }
