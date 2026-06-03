@@ -15,6 +15,7 @@ type WorkspaceConfigDetail struct {
 // RoleDetail represents a role and its permissions
 type RoleDetail struct {
 	Role        string      `yaml:"role"`
+	Comment     string      `yaml:"comment,omitempty"`
 	Permissions interface{} `yaml:"permissions"` // Can be array or file path
 }
 

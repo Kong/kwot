@@ -268,3 +268,63 @@ func TestApplyPlugin_NonWorkspace404NotRetried(t *testing.T) {
 		t.Errorf("non-workspace 404 must not retry: expected 1 call, got %d", callCount)
 	}
 }
+
+func TestResolveEnvVar(t *testing.T) {
+	t.Setenv("MY_TOKEN", "secret123")
+
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		// valid env var references — should resolve
+		{"${MY_TOKEN}", "secret123"},
+		{"$MY_TOKEN", "secret123"},
+		// unset var — should return "" (UUID fallback)
+		{"${UNSET_VAR}", ""},
+		{"$UNSET_VAR", ""},
+		// literal tokens — must be returned unchanged even when starting with $
+		{"literal-token", "literal-token"},
+		{"", ""},
+		{"$abc-def", "$abc-def"},     // hyphen makes it an invalid identifier
+		{"${abc-def}", "${abc-def}"}, // hyphen inside braces — also invalid
+		{"$1TOKEN", "$1TOKEN"},       // starts with digit — invalid
+		{"$", "$"},                   // bare dollar — invalid
+		{"${}", "${}"},               // empty braces — invalid
+	}
+
+	for _, tc := range tests {
+		got := resolveEnvVar("test-user", tc.input)
+		if got != tc.expected {
+			t.Errorf("resolveEnvVar(%q) = %q, want %q", tc.input, got, tc.expected)
+		}
+	}
+
+	// Ensure a dynamically set env var is resolved (t.Setenv handles cleanup)
+	t.Setenv("DYNAMIC_TOKEN", "dynval")
+	if got := resolveEnvVar("u", "${DYNAMIC_TOKEN}"); got != "dynval" {
+		t.Errorf("expected dynval, got %q", got)
+	}
+}
+
+func TestIsValidEnvVarName(t *testing.T) {
+	tests := []struct {
+		name  string
+		valid bool
+	}{
+		{"MY_TOKEN", true},
+		{"_PRIVATE", true},
+		{"TOKEN123", true},
+		{"A", true},
+		{"", false},
+		{"1TOKEN", false},
+		{"abc-def", false},
+		{"abc.def", false},
+		{"abc def", false},
+	}
+	for _, tc := range tests {
+		got := isValidEnvVarName(tc.name)
+		if got != tc.valid {
+			t.Errorf("isValidEnvVarName(%q) = %v, want %v", tc.name, got, tc.valid)
+		}
+	}
+}

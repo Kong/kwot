@@ -525,14 +525,65 @@ func (p *Processor) getCurrentRBACUsers(workspaceName string) ([]string, error) 
 	return userNames, nil
 }
 
+// isValidEnvVarName reports whether name is a valid POSIX env var identifier:
+// must start with a letter or underscore, followed only by letters, digits, or underscores.
+func isValidEnvVarName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for i, c := range name {
+		switch {
+		case c == '_':
+			// always valid
+		case c >= 'A' && c <= 'Z', c >= 'a' && c <= 'z':
+			// always valid
+		case c >= '0' && c <= '9':
+			if i == 0 {
+				return false // digits not allowed at start
+			}
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// resolveEnvVar expands ${VAR} or $VAR references in s using os.Getenv.
+// Only expands when the var name is a valid POSIX identifier; otherwise returns s unchanged.
+// Returns "" (triggering UUID fallback) if the referenced var is unset, and logs a warning.
+func resolveEnvVar(userName, s string) string {
+	if s == "" {
+		return s
+	}
+	var varName string
+	if strings.HasPrefix(s, "${") && strings.HasSuffix(s, "}") {
+		varName = s[2 : len(s)-1]
+	} else if strings.HasPrefix(s, "$") {
+		varName = s[1:]
+	} else {
+		return s
+	}
+	if !isValidEnvVarName(varName) {
+		return s
+	}
+	val := os.Getenv(varName)
+	if val == "" {
+		logger.Warnf("user_token for '%s' references env var '%s' which is not set — falling back to random UUID", userName, varName)
+	}
+	return val
+}
+
 // createOrUpdateRBACUser creates or updates an RBAC user
 // Matches Node.js approach: just POST and handle 409 conflict gracefully.
 // NOTE: user_token is only applied on initial creation. If the user already
 // exists (409), the configured token is NOT reconciled — Kong does not expose
 // a way to retrieve the existing token for comparison, so we leave it unchanged.
 func (p *Processor) createOrUpdateRBACUser(workspaceName string, user models.RBACUser) error {
-	// Use user-specified token if provided, otherwise generate a random UUID
-	userToken := user.UserToken
+	// Resolve env var references in user_token (e.g. ${MY_SECRET})
+	resolvedToken := resolveEnvVar(user.Name, user.UserToken)
+
+	// Use resolved token if non-empty, otherwise generate a random UUID
+	userToken := resolvedToken
 	if userToken == "" {
 		userToken = uuid.New().String()
 	}
@@ -549,7 +600,7 @@ func (p *Processor) createOrUpdateRBACUser(workspaceName string, user models.RBA
 		if strings.Contains(errStr, "409") || strings.Contains(errStr, "conflict") ||
 			strings.Contains(errStr, "UNIQUE violation") || strings.Contains(errStr, "already exists") ||
 			strings.Contains(errStr, "Duplicate resource") {
-			if user.UserToken != "" {
+			if resolvedToken != "" {
 				logger.Warnf("RBAC user '%s' already exists in workspace '%s' — configured user_token was not applied", user.Name, workspaceName)
 			} else {
 				logger.Warnf("RBAC user '%s' already exists in workspace '%s'", user.Name, workspaceName)
@@ -559,7 +610,7 @@ func (p *Processor) createOrUpdateRBACUser(workspaceName string, user models.RBA
 		return fmt.Errorf("failed to create RBAC user: %w", err)
 	}
 
-	if user.UserToken != "" {
+	if resolvedToken != "" {
 		logger.Debugf("RBAC user '%s' created in workspace '%s' with configured user_token", user.Name, workspaceName)
 	}
 	logger.Infof("RBAC user '%s' created in workspace '%s'", user.Name, workspaceName)
