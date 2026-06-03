@@ -296,7 +296,8 @@ func (p *Processor) createRole(workspaceName string, roleDetail models.RoleDetai
 	path := fmt.Sprintf("/%s/rbac/roles", workspaceName)
 
 	role := models.Role{
-		Name: roleDetail.Role,
+		Name:    roleDetail.Role,
+		Comment: roleDetail.Comment,
 	}
 
 	var result models.RoleResponse

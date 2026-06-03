@@ -2,7 +2,7 @@ module github.com/Kong/kwot
 
 go 1.26
 
-toolchain go1.26.3
+toolchain go1.26.4
 
 require (
 	github.com/joho/godotenv v1.5.1

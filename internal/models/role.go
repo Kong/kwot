@@ -2,7 +2,8 @@ package models
 
 // Role represents a Kong RBAC role
 type Role struct {
-	Name string `json:"name"`
+	Name    string `json:"name"`
+	Comment string `json:"comment,omitempty"`
 }
 
 // RoleResponse represents the API response for a role

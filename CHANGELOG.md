@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.13] - 2026-06-03
+
+### Added
+
+- **Env var interpolation in `user_token`** — `workspace-rbac-user.yaml` now supports `${VAR_NAME}` and `$VAR_NAME` syntax in the `user_token` field. kwot resolves the reference from the environment at runtime, enabling CI/CD pipelines (e.g. GitHub Actions secrets) to inject tokens without pre-processing YAML files. If the referenced env var is unset, kwot logs a warning and falls back to a random UUID (closes #31).
+- **Role comment support** — `workspace.yaml` RBAC entries now accept an optional `comment` field that is forwarded to Kong on role creation, making roles self-documenting in Kong Manager.
+
+### Security
+
+- Update Go toolchain from `go1.26.3` to `go1.26.4` to fix 2 Go standard library vulnerabilities:
+  - **GO-2026-5039**: Arbitrary inputs included in errors without escaping in `net/textproto`
+  - **GO-2026-5037**: Inefficient candidate hostname parsing in `crypto/x509`
+
+### Changed
+
+- `go.mod` toolchain pin updated from `go1.26.3` to `go1.26.4`
+- `Dockerfile` builder stage updated from `golang:1.26.3-alpine` to `golang:1.26.4-alpine`
+
 ## [1.0.12] - 2026-05-26
 
 ### Security
